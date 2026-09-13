@@ -1,122 +1,165 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import { useMemo, useState } from "react";
+import "./App.css";
 
-function App() {
-  const [count, setCount] = useState(0)
+function calculateLiquidKv({ flowRateM3h, specificGravity, pressureDropBar }) {
+  const q = Number(flowRateM3h);
+  const sg = Number(specificGravity);
+  const dp = Number(pressureDropBar);
 
-  return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+  if (!q || !sg || !dp || q <= 0 || sg <= 0 || dp <= 0) {
+    return null;
+  }
 
-      <div className="ticks"></div>
+  const kv = q * Math.sqrt(sg / dp);
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+  return {
+    kv,
+    roundedKv: Number(kv.toFixed(2)),
+  };
 }
 
-export default App
+function App() {
+  const [inputs, setInputs] = useState({
+    tagNumber: "LV-1001",
+    fluidName: "Water",
+    flowRateM3h: 10,
+    specificGravity: 1,
+    pressureDropBar: 1,
+  });
+
+  const result = useMemo(() => calculateLiquidKv(inputs), [inputs]);
+
+  function updateInput(field, value) {
+    setInputs((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  }
+
+  return (
+    <main className="app-shell">
+      <section className="hero">
+        <div>
+          <p className="eyebrow">Control Valve Sizing Tool</p>
+          <h1>Liquid sizing prototype</h1>
+          <p className="hero-text">
+            First working version for calculating a basic liquid valve flow
+            coefficient using metric units.
+          </p>
+        </div>
+
+        <div className="status-card">
+          <span className="status-dot" />
+          <div>
+            <strong>Version 0.1.0</strong>
+            <p>Prototype calculation only</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="content-grid">
+        <div className="panel">
+          <h2>Input data</h2>
+
+          <label>
+            Tag number
+            <input
+              type="text"
+              value={inputs.tagNumber}
+              onChange={(event) => updateInput("tagNumber", event.target.value)}
+            />
+          </label>
+
+          <label>
+            Fluid name
+            <input
+              type="text"
+              value={inputs.fluidName}
+              onChange={(event) => updateInput("fluidName", event.target.value)}
+            />
+          </label>
+
+          <label>
+            Flow rate, Q
+            <div className="input-with-unit">
+              <input
+                type="number"
+                value={inputs.flowRateM3h}
+                onChange={(event) =>
+                  updateInput("flowRateM3h", event.target.value)
+                }
+              />
+              <span>m³/h</span>
+            </div>
+          </label>
+
+          <label>
+            Specific gravity, SG
+            <input
+              type="number"
+              step="0.01"
+              value={inputs.specificGravity}
+              onChange={(event) =>
+                updateInput("specificGravity", event.target.value)
+              }
+            />
+          </label>
+
+          <label>
+            Pressure drop, ΔP
+            <div className="input-with-unit">
+              <input
+                type="number"
+                step="0.01"
+                value={inputs.pressureDropBar}
+                onChange={(event) =>
+                  updateInput("pressureDropBar", event.target.value)
+                }
+              />
+              <span>bar</span>
+            </div>
+          </label>
+        </div>
+
+        <div className="panel result-panel">
+          <h2>Result</h2>
+
+          {result ? (
+            <>
+              <div className="result-value">
+                <span>Required Kv</span>
+                <strong>{result.roundedKv}</strong>
+              </div>
+
+              <div className="formula-box">
+                <h3>Calculation used</h3>
+                <p>Kv = Q × √(SG / ΔP)</p>
+                <p>
+                  Kv = {inputs.flowRateM3h} × √({inputs.specificGravity} /{" "}
+                  {inputs.pressureDropBar})
+                </p>
+              </div>
+
+              <div className="note-box">
+                <strong>Important:</strong>
+                <p>
+                  This is a simplified first-pass liquid sizing calculation. It
+                  does not yet include cavitation, flashing, viscosity
+                  correction, fittings, choked flow, valve style limits, or
+                  manufacturer-specific data.
+                </p>
+              </div>
+            </>
+          ) : (
+            <div className="empty-result">
+              Enter positive values for flow rate, specific gravity and pressure
+              drop.
+            </div>
+          )}
+        </div>
+      </section>
+    </main>
+  );
+}
+
+export default App;
