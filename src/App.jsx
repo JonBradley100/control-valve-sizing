@@ -1,20 +1,22 @@
 import { useMemo, useState } from "react";
 import "./App.css";
 
-function calculateLiquidKv({ flowRateM3h, specificGravity, pressureDropBar }) {
-  const q = Number(flowRateM3h);
+function calculateLiquidCv({ flowRateGpm, specificGravity, pressureDropPsi }) {
+  const q = Number(flowRateGpm);
   const sg = Number(specificGravity);
-  const dp = Number(pressureDropBar);
+  const dp = Number(pressureDropPsi);
 
   if (!q || !sg || !dp || q <= 0 || sg <= 0 || dp <= 0) {
     return null;
   }
 
-  const kv = q * Math.sqrt(sg / dp);
+  // Preliminary incompressible liquid relationship.
+  // Full IEC 60534 implementation will add correction factors and limit checks.
+  const cv = q * Math.sqrt(sg / dp);
 
   return {
-    kv,
-    roundedKv: Number(kv.toFixed(2)),
+    cv,
+    roundedCv: Number(cv.toFixed(2)),
   };
 }
 
@@ -22,12 +24,12 @@ function App() {
   const [inputs, setInputs] = useState({
     tagNumber: "LV-1001",
     fluidName: "Water",
-    flowRateM3h: 10,
+    flowRateGpm: 100,
     specificGravity: 1,
-    pressureDropBar: 1,
+    pressureDropPsi: 10,
   });
 
-  const result = useMemo(() => calculateLiquidKv(inputs), [inputs]);
+  const result = useMemo(() => calculateLiquidCv(inputs), [inputs]);
 
   function updateInput(field, value) {
     setInputs((current) => ({
@@ -41,18 +43,19 @@ function App() {
       <section className="hero">
         <div>
           <p className="eyebrow">Control Valve Sizing Tool</p>
-          <h1>Liquid sizing prototype</h1>
+          <h1>Liquid Cv sizing prototype</h1>
           <p className="hero-text">
-            First working version for calculating a basic liquid valve flow
-            coefficient using metric units.
+            First working version for calculating a preliminary liquid valve flow
+            coefficient using Cv-based units. The calculation engine will be
+            developed in accordance with IEC 60534.
           </p>
         </div>
 
         <div className="status-card">
           <span className="status-dot" />
           <div>
-            <strong>Version 0.1.0</strong>
-            <p>Prototype calculation only</p>
+            <strong>Version 0.1.1</strong>
+            <p>IEC 60534 basis selected</p>
           </div>
         </div>
       </section>
@@ -80,16 +83,16 @@ function App() {
           </label>
 
           <label>
-            Flow rate, Q
+            Liquid flow rate, Q
             <div className="input-with-unit">
               <input
                 type="number"
-                value={inputs.flowRateM3h}
+                value={inputs.flowRateGpm}
                 onChange={(event) =>
-                  updateInput("flowRateM3h", event.target.value)
+                  updateInput("flowRateGpm", event.target.value)
                 }
               />
-              <span>m³/h</span>
+              <span>gpm</span>
             </div>
           </label>
 
@@ -111,12 +114,12 @@ function App() {
               <input
                 type="number"
                 step="0.01"
-                value={inputs.pressureDropBar}
+                value={inputs.pressureDropPsi}
                 onChange={(event) =>
-                  updateInput("pressureDropBar", event.target.value)
+                  updateInput("pressureDropPsi", event.target.value)
                 }
               />
-              <span>bar</span>
+              <span>psi</span>
             </div>
           </label>
         </div>
@@ -127,26 +130,28 @@ function App() {
           {result ? (
             <>
               <div className="result-value">
-                <span>Required Kv</span>
-                <strong>{result.roundedKv}</strong>
+                <span>Required Cv</span>
+                <strong>{result.roundedCv}</strong>
               </div>
 
               <div className="formula-box">
                 <h3>Calculation used</h3>
-                <p>Kv = Q × √(SG / ΔP)</p>
+                <p>Cv = Q × √(SG / ΔP)</p>
                 <p>
-                  Kv = {inputs.flowRateM3h} × √({inputs.specificGravity} /{" "}
-                  {inputs.pressureDropBar})
+                  Cv = {inputs.flowRateGpm} × √({inputs.specificGravity} /{" "}
+                  {inputs.pressureDropPsi})
                 </p>
               </div>
 
               <div className="note-box">
-                <strong>Important:</strong>
+                <strong>IEC 60534 development note:</strong>
                 <p>
-                  This is a simplified first-pass liquid sizing calculation. It
-                  does not yet include cavitation, flashing, viscosity
-                  correction, fittings, choked flow, valve style limits, or
-                  manufacturer-specific data.
+                  This screen currently uses a simplified preliminary
+                  incompressible liquid Cv relationship. The full calculation
+                  engine will be developed around IEC 60534 methodology,
+                  including pressure recovery, choked flow, cavitation,
+                  flashing, Reynolds correction, attached fittings, and
+                  valve-specific coefficients.
                 </p>
               </div>
             </>
