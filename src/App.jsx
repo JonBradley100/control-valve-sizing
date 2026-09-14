@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { loadTrimDatabase } from "./data/loadTrimDatabase";
 import "./App.css";
 import { calculateLiquidCv } from "./calculations/iec60534/liquidSizing";
 import InputPanel from "./components/InputPanel";
@@ -14,10 +15,61 @@ function App() {
     pressureDropPsi: 10,
   });
 
+  const [selectedValve, setSelectedValve] = useState({
+    directionality: "CB",
+    size: "02",
+    pressureClass: "015",
+    stages: "1",
+    trimType: "S",
+    style: "L",
+  });
+
+  const [trimDatabase, setTrimDatabase] = useState([]);
+  const [trimDatabaseError, setTrimDatabaseError] = useState(null);
+
+  useEffect(() => {
+    loadTrimDatabase()
+      .then((rows) => {
+        console.log("Loaded trim database:", rows);
+        console.log("First trim row:", rows[0]);
+        setTrimDatabase(rows);
+      })
+      .catch((error) => {
+        console.error(error);
+        setTrimDatabaseError(error.message);
+      });
+  }, []);
+
+  const selectedValveCode = useMemo(() => {
+    const stageCode = `${selectedValve.stages}001`;
+
+    return [
+      selectedValve.directionality,
+      selectedValve.size,
+      selectedValve.pressureClass,
+      stageCode,
+      selectedValve.trimType,
+      selectedValve.style,
+    ].join("-");
+  }, [selectedValve]);
+
+  const selectedTrim = useMemo(() => {
+    return trimDatabase.find((trim) => trim.code === selectedValveCode) || null;
+  }, [trimDatabase, selectedValveCode]);
+
+  const selectedTrimDesignCv = selectedTrim?.designCvNumeric ?? null;
+
   const result = useMemo(() => calculateLiquidCv(inputs), [inputs]);
 
   function updateInput(field, value) {
     setInputs((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  }
+
+  function updateSelectedValve(field, value) {
+    setSelectedValve((current) => ({
       ...current,
       [field]: value,
     }));
@@ -34,6 +86,16 @@ function App() {
             coefficient using Cv-based units. The calculation engine will be
             developed in accordance with IEC 60534.
           </p>
+
+          <div className="database-status">
+            Trim database rows loaded: {trimDatabase.length}
+          </div>
+
+          {trimDatabaseError && (
+            <div className="database-error">
+              Trim database error: {trimDatabaseError}
+            </div>
+          )}
         </div>
 
         <StatusCard />
@@ -41,6 +103,125 @@ function App() {
 
       <section className="content-grid">
         <InputPanel inputs={inputs} onInputChange={updateInput} />
+
+        <section className="panel">
+          <div className="panel-header">
+            <div>
+              <p className="eyebrow">Selected Valve</p>
+              <h2>Trim selection</h2>
+            </div>
+          </div>
+
+          <div className="input-grid">
+            <label>
+              Directionality
+              <select
+                value={selectedValve.directionality}
+                onChange={(event) =>
+                  updateSelectedValve("directionality", event.target.value)
+                }
+              >
+                <option value="CB">CB - Bi-directional</option>
+                <option value="CU">CU - Uni-directional</option>
+              </select>
+            </label>
+
+            <label>
+              Nominal valve size, inches
+              <select
+                value={selectedValve.size}
+                onChange={(event) =>
+                  updateSelectedValve("size", event.target.value)
+                }
+              >
+                <option value="01">1 inch</option>
+                <option value="015">1.5 inch</option>
+                <option value="02">2 inch</option>
+                <option value="03">3 inch</option>
+                <option value="04">4 inch</option>
+                <option value="06">6 inch</option>
+                <option value="08">8 inch</option>
+                <option value="10">10 inch</option>
+                <option value="12">12 inch</option>
+              </select>
+            </label>
+
+            <label>
+              Pressure class
+              <select
+                value={selectedValve.pressureClass}
+                onChange={(event) =>
+                  updateSelectedValve("pressureClass", event.target.value)
+                }
+              >
+                <option value="015">150#</option>
+                <option value="030">300#</option>
+                <option value="060">600#</option>
+                <option value="090">900#</option>
+                <option value="150">1500#</option>
+                <option value="250">2500#</option>
+              </select>
+            </label>
+
+            <label>
+              Number of stages
+              <select
+                value={selectedValve.stages}
+                onChange={(event) =>
+                  updateSelectedValve("stages", event.target.value)
+                }
+              >
+                <option value="1">1 stage</option>
+                <option value="2">2 stages</option>
+                <option value="3">3 stages</option>
+                <option value="4">4 stages</option>
+              </select>
+            </label>
+
+            <label>
+              Trim construction
+              <select
+                value={selectedValve.trimType}
+                onChange={(event) =>
+                  updateSelectedValve("trimType", event.target.value)
+                }
+              >
+                <option value="S">S - Slotted</option>
+                <option value="H">H - Holes</option>
+              </select>
+            </label>
+
+            <label>
+              Flow characteristic
+              <select
+                value={selectedValve.style}
+                onChange={(event) =>
+                  updateSelectedValve("style", event.target.value)
+                }
+              >
+                <option value="L">L - Linear</option>
+                <option value="E">E - Equal percentage</option>
+                <option value="Q">Q - Equal-linear</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="result-card">
+            <span className="result-label">Selected trim code</span>
+            <strong>{selectedValveCode}</strong>
+          </div>
+
+          <div className="result-card">
+            <span className="result-label">Selected trim design Cv</span>
+
+            {selectedTrim ? (
+              <strong>{selectedTrimDesignCv}</strong>
+            ) : (
+              <strong>Not found in database</strong>
+            )}
+          </div>
+        </section>
+
         <ResultPanel inputs={inputs} result={result} />
       </section>
     </main>
