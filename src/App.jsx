@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { loadTrimDatabase } from "./data/loadTrimDatabase";
+import { loadFluidDatabase } from "./data/loadFluidDatabase";
 import "./App.css";
 import { calculateLiquidCv } from "./calculations/iec60534/liquidSizing";
 import InputPanel from "./components/InputPanel";
@@ -7,9 +8,11 @@ import ResultPanel from "./components/ResultPanel";
 import StatusCard from "./components/StatusCard";
 
 function App() {
+  const [fluidType, setFluidType] = useState("liquid");
+
   const [inputs, setInputs] = useState({
     tagNumber: "LV-1001",
-    fluidName: "Water",
+    fluidName: "",
     flowRateGpm: 100,
     specificGravity: 1,
     pressureDropPsi: 10,
@@ -27,6 +30,10 @@ function App() {
   const [trimDatabase, setTrimDatabase] = useState([]);
   const [trimDatabaseError, setTrimDatabaseError] = useState(null);
 
+  const [fluidDatabase, setFluidDatabase] = useState([]);
+  const [fluidDatabaseError, setFluidDatabaseError] = useState(null);
+  const [selectedFluidName, setSelectedFluidName] = useState("");
+
   useEffect(() => {
     loadTrimDatabase()
       .then((rows) => {
@@ -39,6 +46,45 @@ function App() {
         setTrimDatabaseError(error.message);
       });
   }, []);
+
+  useEffect(() => {
+    loadFluidDatabase()
+      .then((rows) => {
+        console.log("Loaded fluid database:", rows);
+        console.log("First fluid row:", rows[0]);
+        setFluidDatabase(rows);
+      })
+      .catch((error) => {
+        console.error(error);
+        setFluidDatabaseError(error.message);
+      });
+  }, []);
+
+  useEffect(() => {
+    if (selectedFluidName || fluidDatabase.length === 0) {
+      return;
+    }
+
+    setSelectedFluidName(fluidDatabase[0].fluidName);
+  }, [fluidDatabase, selectedFluidName]);
+
+  const selectedFluid = useMemo(() => {
+    return (
+      fluidDatabase.find((fluid) => fluid.fluidName === selectedFluidName) ||
+      null
+    );
+  }, [fluidDatabase, selectedFluidName]);
+
+  useEffect(() => {
+    if (!selectedFluid) {
+      return;
+    }
+
+    setInputs((current) => ({
+      ...current,
+      fluidName: selectedFluid.fluidName,
+    }));
+  }, [selectedFluid]);
 
   const selectedValveCode = useMemo(() => {
     const stageCode = `${selectedValve.stages}001`;
@@ -54,12 +100,26 @@ function App() {
   }, [selectedValve]);
 
   const selectedTrim = useMemo(() => {
-    return trimDatabase.find((trim) => trim.code === selectedValveCode) || null;
+    return (
+      trimDatabase.find(
+        (trim) => String(trim.code).trim() === selectedValveCode
+      ) || null
+    );
   }, [trimDatabase, selectedValveCode]);
 
   const selectedTrimDesignCv = selectedTrim?.designCvNumeric ?? null;
 
-  const result = useMemo(() => calculateLiquidCv(inputs), [inputs]);
+  const result = useMemo(() => {
+    if (fluidType === "liquid") {
+      return calculateLiquidCv(inputs);
+    }
+
+    return {
+      requiredCv: null,
+      status: "Gas sizing module not yet implemented",
+      warnings: ["Gas sizing will be added in the next calculation module."],
+    };
+  }, [fluidType, inputs]);
 
   function updateInput(field, value) {
     setInputs((current) => ({
@@ -75,25 +135,91 @@ function App() {
     }));
   }
 
+  const appModeClass = fluidType === "liquid" ? "mode-liquid" : "mode-gas";
+
   return (
-    <main className="app-shell">
+    <main className={`app-shell ${appModeClass}`}>
       <section className="hero">
         <div>
           <p className="eyebrow">Control Valve Sizing Tool</p>
-          <h1>Liquid Cv sizing prototype</h1>
+
+          <h1 className="app-title">
+            {fluidType === "liquid"
+              ? "Liquid Cv sizing prototype"
+              : "Gas Cv sizing prototype"}
+          </h1>
+
+          <div className="fluid-toggle" aria-label="Fluid sizing type">
+            <button
+              type="button"
+              className={fluidType === "liquid" ? "active" : ""}
+              onClick={() => setFluidType("liquid")}
+            >
+              Liquid
+            </button>
+
+            <button
+              type="button"
+              className={fluidType === "gas" ? "active" : ""}
+              onClick={() => setFluidType("gas")}
+            >
+              Gas
+            </button>
+          </div>
+
+          <label className="fluid-select-label">
+            Fluid
+            <select
+              className="fluid-select"
+              value={selectedFluidName}
+              onChange={(event) => setSelectedFluidName(event.target.value)}
+            >
+              {fluidDatabase.length === 0 ? (
+                <option value="">No fluids loaded</option>
+              ) : (
+                fluidDatabase.map((fluid) => (
+                  <option key={fluid.id} value={fluid.fluidName}>
+                    {fluid.fluidName}
+                  </option>
+                ))
+              )}
+            </select>
+          </label>
+
+          {selectedFluid && (
+            <div className="fluid-summary">
+              <strong>{selectedFluid.fluidName}</strong>
+              <span>RMM: {selectedFluid.rmm ?? "—"}</span>
+              <span>Kappa: {selectedFluid.kappa ?? "—"}</span>
+              <span>Pc: {selectedFluid.criticalPressure ?? "—"}</span>
+              <span>Tc: {selectedFluid.criticalTemperature ?? "—"}</span>
+              <span>Rho: {selectedFluid.rho ?? "—"}</span>
+            </div>
+          )}
+
           <p className="hero-text">
-            First modular version for calculating a preliminary liquid valve flow
-            coefficient using Cv-based units. The calculation engine will be
-            developed in accordance with IEC 60534.
+            Select the sizing mode before entering process conditions. The fluid
+            selector is available for both liquid and gas sizing; the engineer
+            remains responsible for choosing the appropriate fluid record.
           </p>
 
           <div className="database-status">
             Trim database rows loaded: {trimDatabase.length}
           </div>
 
+          <div className="database-status">
+            Fluid database rows loaded: {fluidDatabase.length}
+          </div>
+
           {trimDatabaseError && (
             <div className="database-error">
               Trim database error: {trimDatabaseError}
+            </div>
+          )}
+
+          {fluidDatabaseError && (
+            <div className="database-error">
+              Fluid database error: {fluidDatabaseError}
             </div>
           )}
         </div>
