@@ -141,74 +141,54 @@ function App() {
     <main className={`app-shell ${appModeClass}`}>
       <section className="hero">
         <div>
-          <p className="eyebrow">Control Valve Sizing Tool</p>
-
-          <h1 className="app-title">
-            {fluidType === "liquid"
-              ? "Liquid Cv sizing prototype"
-              : "Gas Cv sizing prototype"}
-          </h1>
-
-          <div className="fluid-toggle" aria-label="Fluid sizing type">
-            <button
-              type="button"
-              className={fluidType === "liquid" ? "active" : ""}
-              onClick={() => setFluidType("liquid")}
-            >
-              Liquid
-            </button>
-
-            <button
-              type="button"
-              className={fluidType === "gas" ? "active" : ""}
-              onClick={() => setFluidType("gas")}
-            >
-              Gas
-            </button>
+          <div className="title-row">
+            <p className="eyebrow">
+              <b>IEC60534 Control Valve Sizing</b>
+            </p>
+            <span className="version-label">Version 0.1.2</span>
           </div>
 
-          <label className="fluid-select-label">
-            Fluid
-            <select
-              className="fluid-select"
-              value={selectedFluidName}
-              onChange={(event) => setSelectedFluidName(event.target.value)}
-            >
-              {fluidDatabase.length === 0 ? (
-                <option value="">No fluids loaded</option>
-              ) : (
-                fluidDatabase.map((fluid) => (
-                  <option key={fluid.id} value={fluid.fluidName}>
-                    {fluid.fluidName}
-                  </option>
-                ))
-              )}
-            </select>
-          </label>
+          <div className="fluid-controls">
+            <div className="fluid-toggle" aria-label="Fluid sizing type">
+              <button
+                type="button"
+                className={fluidType === "liquid" ? "active" : ""}
+                onClick={() => setFluidType("liquid")}
+              >
+                Liquid
+              </button>
 
-          {selectedFluid && (
-            <div className="fluid-summary">
-              <strong>{selectedFluid.fluidName}</strong>
-              <span>RMM: {selectedFluid.rmm ?? "—"}</span>
-              <span>Kappa: {selectedFluid.kappa ?? "—"}</span>
-              <span>Pc: {selectedFluid.criticalPressure ?? "—"}</span>
-              <span>Tc: {selectedFluid.criticalTemperature ?? "—"}</span>
-              <span>Rho: {selectedFluid.rho ?? "—"}</span>
+              <button
+                type="button"
+                className={fluidType === "gas" ? "active" : ""}
+                onClick={() => setFluidType("gas")}
+              >
+                Gas
+              </button>
             </div>
-          )}
 
-          <p className="hero-text">
-            Select the sizing mode before entering process conditions. The fluid
-            selector is available for both liquid and gas sizing; the engineer
-            remains responsible for choosing the appropriate fluid record.
-          </p>
+            <div className="fluid-selector-row">
+              <label className="fluid-select-label" htmlFor="fluid-select">
+                Fluid :
+              </label>
 
-          <div className="database-status">
-            Trim database rows loaded: {trimDatabase.length}
-          </div>
-
-          <div className="database-status">
-            Fluid database rows loaded: {fluidDatabase.length}
+              <select
+                id="fluid-select"
+                className="fluid-select"
+                value={selectedFluidName}
+                onChange={(event) => setSelectedFluidName(event.target.value)}
+              >
+                {fluidDatabase.length === 0 ? (
+                  <option value="">No fluids loaded</option>
+                ) : (
+                  fluidDatabase.map((fluid) => (
+                    <option key={fluid.id} value={fluid.fluidName}>
+                      {fluid.fluidName}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
           </div>
 
           {trimDatabaseError && (
@@ -224,7 +204,7 @@ function App() {
           )}
         </div>
 
-        <StatusCard />
+        
       </section>
 
       <section className="content-grid">
