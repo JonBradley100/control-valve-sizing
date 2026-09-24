@@ -5,7 +5,6 @@ import "./App.css";
 import { calculateLiquidCv } from "./calculations/iec60534/liquidSizing";
 import InputPanel from "./components/InputPanel";
 import ResultPanel from "./components/ResultPanel";
-import StatusCard from "./components/StatusCard";
 
 function App() {
   const [fluidType, setFluidType] = useState("liquid");
@@ -26,6 +25,57 @@ function App() {
     trimType: "S",
     style: "L",
   });
+
+  const [pipework, setPipework] = useState({
+    inletPipeSize: "2",
+    inletPipeSchedule: "40",
+    outletPipeSize: "2",
+    outletPipeSchedule: "40",
+  });
+
+  const pipeSizeOptions = [
+    "2",
+    "3",
+    "4",
+    "6",
+    "8",
+    "10",
+    "12",
+    "14",
+    "16",
+    "18",
+    "20",
+    "22",
+    "24",
+    "26",
+    "28",
+    "30",
+    "32",
+    "34",
+    "36",
+    "38",
+    "40",
+    "42",
+    "44",
+    "46",
+    "48",
+  ];
+
+  const scheduleOptions = [
+    "5",
+    "10",
+    "20",
+    "40",
+    "80",
+    "160",
+    "STD",
+    "XS",
+    "XXS",
+    "5S",
+    "10S",
+    "20S",
+    "40S",
+  ];
 
   const [trimDatabase, setTrimDatabase] = useState([]);
   const [trimDatabaseError, setTrimDatabaseError] = useState(null);
@@ -135,6 +185,13 @@ function App() {
     }));
   }
 
+  function updatePipework(field, value) {
+    setPipework((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  }
+
   const appModeClass = fluidType === "liquid" ? "mode-liquid" : "mode-gas";
 
   return (
@@ -149,45 +206,135 @@ function App() {
           </div>
 
           <div className="fluid-controls">
-            <div className="fluid-toggle" aria-label="Fluid sizing type">
-              <button
-                type="button"
-                className={fluidType === "liquid" ? "active" : ""}
-                onClick={() => setFluidType("liquid")}
-              >
-                Liquid
-              </button>
+            <div className="fluid-toggle-row">
+              <div className="fluid-toggle" aria-label="Fluid sizing type">
+                <button
+                  type="button"
+                  className={fluidType === "liquid" ? "active" : ""}
+                  onClick={() => setFluidType("liquid")}
+                >
+                  Liquid
+                </button>
 
-              <button
-                type="button"
-                className={fluidType === "gas" ? "active" : ""}
-                onClick={() => setFluidType("gas")}
-              >
-                Gas
-              </button>
+                <button
+                  type="button"
+                  className={fluidType === "gas" ? "active" : ""}
+                  onClick={() => setFluidType("gas")}
+                >
+                  Gas
+                </button>
+              </div>
             </div>
 
-            <div className="fluid-selector-row">
-              <label className="fluid-select-label" htmlFor="fluid-select">
-                Fluid :
-              </label>
+            <div className="pipework-main-row">
+              <div className="fluid-selector-row">
+                <label className="fluid-select-label" htmlFor="fluid-select">
+                  Fluid :
+                </label>
 
-              <select
-                id="fluid-select"
-                className="fluid-select"
-                value={selectedFluidName}
-                onChange={(event) => setSelectedFluidName(event.target.value)}
-              >
-                {fluidDatabase.length === 0 ? (
-                  <option value="">No fluids loaded</option>
-                ) : (
-                  fluidDatabase.map((fluid) => (
-                    <option key={fluid.id} value={fluid.fluidName}>
-                      {fluid.fluidName}
+                <select
+                  id="fluid-select"
+                  className="fluid-select"
+                  value={selectedFluidName}
+                  onChange={(event) => setSelectedFluidName(event.target.value)}
+                >
+                  {fluidDatabase.length === 0 ? (
+                    <option value="">No fluids loaded</option>
+                  ) : (
+                    fluidDatabase.map((fluid) => (
+                      <option key={fluid.id} value={fluid.fluidName}>
+                        {fluid.fluidName}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+
+              <div className="fluid-selector-row">
+                <label className="fluid-select-label" htmlFor="inlet-pipe-select">
+                  Inlet Pipe :
+                </label>
+
+                <select
+                  id="inlet-pipe-select"
+                  className="fluid-select pipe-select"
+                  value={pipework.inletPipeSize}
+                  onChange={(event) =>
+                    updatePipework("inletPipeSize", event.target.value)
+                  }
+                >
+                  {pipeSizeOptions.map((size) => (
+                    <option key={size} value={size}>
+                      {size}&quot;
                     </option>
-                  ))
-                )}
-              </select>
+                  ))}
+                </select>
+              </div>
+
+              <div className="fluid-selector-row">
+                <label className="fluid-select-label" htmlFor="outlet-pipe-select">
+                  Outlet Pipe :
+                </label>
+
+                <select
+                  id="outlet-pipe-select"
+                  className="fluid-select pipe-select"
+                  value={pipework.outletPipeSize}
+                  onChange={(event) =>
+                    updatePipework("outletPipeSize", event.target.value)
+                  }
+                >
+                  {pipeSizeOptions.map((size) => (
+                    <option key={size} value={size}>
+                      {size}&quot;
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="pipework-schedule-row">
+              <div className="fluid-selector-row">
+                <label className="fluid-select-label" htmlFor="inlet-schedule-select">
+                  Inlet Schedule :
+                </label>
+
+                <select
+                  id="inlet-schedule-select"
+                  className="fluid-select pipe-select"
+                  value={pipework.inletPipeSchedule}
+                  onChange={(event) =>
+                    updatePipework("inletPipeSchedule", event.target.value)
+                  }
+                >
+                  {scheduleOptions.map((schedule) => (
+                    <option key={schedule} value={schedule}>
+                      {schedule}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="fluid-selector-row">
+                <label className="fluid-select-label" htmlFor="outlet-schedule-select">
+                  Outlet Schedule :
+                </label>
+
+                <select
+                  id="outlet-schedule-select"
+                  className="fluid-select pipe-select"
+                  value={pipework.outletPipeSchedule}
+                  onChange={(event) =>
+                    updatePipework("outletPipeSchedule", event.target.value)
+                  }
+                >
+                  {scheduleOptions.map((schedule) => (
+                    <option key={schedule} value={schedule}>
+                      {schedule}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
 
@@ -203,8 +350,6 @@ function App() {
             </div>
           )}
         </div>
-
-        
       </section>
 
       <section className="content-grid">
