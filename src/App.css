@@ -43,6 +43,8 @@
   transform: translateY(-1px);
 }
 
+
+
 .fluid-toggle button.active {
   color: #ffffff;
   box-shadow: 0 8px 20px rgba(15, 23, 42, 0.18);
@@ -84,14 +86,15 @@
   border-color: rgba(245, 158, 11, 0.22);
 }
 
+.fluid-column {
+  transform: translateX(-5rem);
+}
+
 .fluid-controls {
   display: flex;
-  justify-content: center;
   flex-direction: column;
   align-items: center;
-  flex-wrap: wrap;
   gap: 0.75rem;
-  margin-top: 0.75rem;
 }
 
 .fluid-toggle-row {
@@ -100,41 +103,57 @@
   width: 100%;
 }
 
-.pipework-main-row,
-.pipework-schedule-row {
+.pipework-main-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   flex-wrap: wrap;
   gap: 0.75rem;
   width: 100%;
 }
 
-.fluid-toggle {
-  align-self: center;
+.pipework-column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.fluid-column {
+  padding-top: 0;
 }
 
 .fluid-selector-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 8.5rem auto;
   align-items: center;
-  justify-content: flex-start;
-  gap: 0.5rem;
-  font-size: 0.9rem;
-  margin-left: 0.5rem;
+  column-gap: 0.4rem;
 }
 
 .fluid-select-label {
   font-size: 0.85rem;
   font-weight: 600;
-  color: inherit;
-  margin: 0;
   white-space: nowrap;
+  text-align: right;
 }
 
 .fluid-select {
-  font-size: 0.7rem;
-  font-weight: 400;
+  width: 9rem;
   min-width: 9rem;
+  text-align: center;
+  text-align-last: center;
+}
+
+.pipe-select {
+  width: 3rem;
+  min-width: 3rem;
+  text-align: center;
+  text-align-last: center;
+}
+
+.main-fluid-select {
+  width: 9rem;
+  min-width: 9rem;
+  text-align: center;
 }
 
 .title-row {
@@ -155,6 +174,101 @@
   margin: 0;
 }
 
-.pipe-select {
-  min-width: 5rem;
+.pipework-bottom-gap {
+  height: 0.5rem;
+}
+
+/*
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+        PROJECT DETAILS ROW
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+*/
+
+.project-details-row {
+  display: grid;
+  grid-template-columns: 2fr 1.1fr 1.1fr 1.1fr;
+  gap: 0.85rem;
+  width: 100%;
+  margin-top: 0.85rem;
+  align-items: center;
+}
+
+/*
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+        PROJECT DETAIL FIELD
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+*/
+
+.project-detail-field {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.project-detail-field label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+  margin: 0;
+}
+
+.project-detail-field input {
+  height: 1.45rem;
+  padding: 0.1rem 0.35rem;
+  border: 1px solid #c8c8c8;
+  border-radius: 3px;
+  font-size: 0.78rem;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+/*
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+        PROJECT FIELD WIDTHS
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+*/
+
+.project-details-row {
+  display: flex;
+  justify-content: center;
+  grid-template-columns: 18rem 12rem 6rem 12rem;
+  gap: 18px;
+  align-items: center;
+  flex-wrap: wrap;
+  widthL 100%;
+}
+
+.project-detail-field {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+.project-detail-field label {
+  white-space: nowrap;
+  margin: 0;
+  text-align: center;
+}
+
+.project-detail-field input {
+  text-align: center;
+}
+
+.project-name-field input {
+  width: 12rem;
+}
+
+.project-number-field input {
+  width: 6rem;
+}
+
+.item-number-field input {
+  width: 5rem;
+}
+
+.tag-number-field input {
+  width: 6rem;
 }

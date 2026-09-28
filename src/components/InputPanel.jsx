@@ -1,8 +1,6 @@
 function InputPanel({ inputs, onInputChange }) {
   return (
     <div className="panel">
-      <h2>Input data</h2>
-
       <label>
         Tag number
         <input
