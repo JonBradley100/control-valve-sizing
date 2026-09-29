@@ -2,25 +2,7 @@ function InputPanel({ inputs, onInputChange }) {
   return (
     <div className="panel">
       <label>
-        Tag number
-        <input
-          type="text"
-          value={inputs.tagNumber}
-          onChange={(event) => onInputChange("tagNumber", event.target.value)}
-        />
-      </label>
-
-      <label>
-        Fluid name
-        <input
-          type="text"
-          value={inputs.fluidName}
-          onChange={(event) => onInputChange("fluidName", event.target.value)}
-        />
-      </label>
-
-      <label>
-        Liquid flow rate, Q
+        Liquid flow rate, Q/m
         <div className="input-with-unit">
           <input
             type="number"

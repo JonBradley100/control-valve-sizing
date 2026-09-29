@@ -278,6 +278,61 @@ function App() {
           XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
 
           <div className="fluid-controls">
+
+            {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+            17h.        PROJECT DETAILS ROW
+            XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
+
+            <div className="project-details-row">
+              <div className="project-detail-field project-name-field">
+                <label htmlFor="project-name">Project Name:</label>
+                <input
+                  id="project-name"
+                  type="text"
+                  value={inputs.projectName}
+                  onChange={(event) =>
+                    updateInput("projectName", event.target.value)
+                  }
+                />
+              </div>
+
+              <div className="project-detail-field project-number-field">
+                <label htmlFor="project-number">Project No.:</label>
+                <input
+                  id="project-number"
+                  type="text"
+                  value={inputs.projectNumber}
+                  onChange={(event) =>
+                    updateInput("projectNumber", event.target.value)
+                  }
+                />
+              </div>
+
+              <div className="project-detail-field item-number-field">
+                <label htmlFor="item-number">Item No.:</label>
+                <input
+                  id="item-number"
+                  type="text"
+                  value={inputs.itemNumber}
+                  onChange={(event) =>
+                    updateInput("itemNumber", event.target.value)
+                  }
+                />
+              </div>
+
+              <div className="project-detail-field tag-number-field">
+                <label htmlFor="tag-number">Tag No.:</label>
+                <input
+                  id="tag-number"
+                  type="text"
+                  value={inputs.tagNumber}
+                  onChange={(event) =>
+                    updateInput("tagNumber", event.target.value)
+                  }
+                />
+              </div>
+            </div>
+          </div>
             
             {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
             17c.        LIQUID / GAS TOGGLE ROW
@@ -451,60 +506,7 @@ function App() {
               </div>
             </div>
 
-           {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-            17h.        PROJECT DETAILS ROW
-            XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
-
-            <div className="project-details-row">
-              <div className="project-detail-field project-name-field">
-                <label htmlFor="project-name">Project Name:</label>
-                <input
-                  id="project-name"
-                  type="text"
-                  value={inputs.projectName}
-                  onChange={(event) =>
-                    updateInput("projectName", event.target.value)
-                  }
-                />
-              </div>
-
-              <div className="project-detail-field project-number-field">
-                <label htmlFor="project-number">Project No.:</label>
-                <input
-                  id="project-number"
-                  type="text"
-                  value={inputs.projectNumber}
-                  onChange={(event) =>
-                    updateInput("projectNumber", event.target.value)
-                  }
-                />
-              </div>
-
-              <div className="project-detail-field item-number-field">
-                <label htmlFor="item-number">Item No.:</label>
-                <input
-                  id="item-number"
-                  type="text"
-                  value={inputs.itemNumber}
-                  onChange={(event) =>
-                    updateInput("itemNumber", event.target.value)
-                  }
-                />
-              </div>
-
-              <div className="project-detail-field tag-number-field">
-                <label htmlFor="tag-number">Tag No.:</label>
-                <input
-                  id="tag-number"
-                  type="text"
-                  value={inputs.tagNumber}
-                  onChange={(event) =>
-                    updateInput("tagNumber", event.target.value)
-                  }
-                />
-              </div>
-            </div>
-          </div>
+           
 
           {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
           17i.        DATABASE ERROR MESSAGES
@@ -529,21 +531,14 @@ function App() {
       XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}  
 
       <section className="content-grid">
-        
-       {/* XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-        17k.        INPUT PANEL
-        XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX */}       
-
-        <InputPanel inputs={inputs} onInputChange={updateInput} />
 
         {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-        17l.        TRIM SELECTION PANEL
+        17k.        TRIM SELECTION PANEL
         XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
         
         <section className="panel">
           <div className="panel-header">
             <div>
-              <p className="eyebrow">Selected Valve</p>
               <h2>Trim selection</h2>
             </div>
           </div>
@@ -557,13 +552,13 @@ function App() {
                   updateSelectedValve("directionality", event.target.value)
                 }
               >
-                <option value="CB">CB - Bi-directional</option>
-                <option value="CU">CU - Uni-directional</option>
+                <option value="CB">Bi-directional</option>
+                <option value="CU">Uni-directional</option>
               </select>
             </label>
 
             <label>
-              Nominal valve size, inches
+              Size, inches
               <select
                 value={selectedValve.size}
                 onChange={(event) =>
@@ -583,7 +578,7 @@ function App() {
             </label>
 
             <label>
-              Pressure class
+              Class
               <select
                 value={selectedValve.pressureClass}
                 onChange={(event) =>
@@ -600,22 +595,22 @@ function App() {
             </label>
 
             <label>
-              Number of stages
+              No. of Stages
               <select
                 value={selectedValve.stages}
                 onChange={(event) =>
                   updateSelectedValve("stages", event.target.value)
                 }
               >
-                <option value="1">1 stage</option>
-                <option value="2">2 stages</option>
-                <option value="3">3 stages</option>
-                <option value="4">4 stages</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
               </select>
             </label>
 
             <label>
-              Trim construction
+              Type
               <select
                 value={selectedValve.trimType}
                 onChange={(event) =>
@@ -628,7 +623,7 @@ function App() {
             </label>
 
             <label>
-              Flow characteristic
+              Characteristic
               <select
                 value={selectedValve.style}
                 onChange={(event) =>
@@ -657,6 +652,12 @@ function App() {
             )}
           </div>
         </section>
+
+        {/* XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+        17l.        INPUT PANEL
+        XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX */}       
+
+        <InputPanel inputs={inputs} onInputChange={updateInput} />
 
         {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
         17m.        RESULT PANEL
