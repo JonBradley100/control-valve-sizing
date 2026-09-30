@@ -3,23 +3,21 @@ import { loadTrimDatabase } from "./data/loadTrimDatabase";
 import { loadFluidDatabase } from "./data/loadFluidDatabase";
 import "./App.css";
 import { calculateLiquidCv } from "./calculations/iec60534/liquidSizing";
-import InputPanel from "./components/InputPanel";
 import ResultPanel from "./components/ResultPanel";
+import TrimSelectionPanel from "./components/TrimSelectionPanel";
+import ProcessCasesPanel from "./components/ProcessCasesPanel";
 
 function App() {
-  /*
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  
+  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   1.        FLUID TYPE STATE
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  */
+  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   const [fluidType, setFluidType] = useState("liquid");
 
-  /*
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   2.        MAIN INPUT STATE
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  */
+  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   const [inputs, setInputs] = useState({
     projectName: "",
@@ -27,31 +25,28 @@ function App() {
     itemNumber: "",
     tagNumber: "LV-1001",
     fluidName: "",
+    caseName: "Case 1",
     flowRateGpm: 100,
     specificGravity: 1,
     pressureDropPsi: 10,
   });
 
-  /*
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   3.        SELECTED VALVE STATE
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  */
+  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   const [selectedValve, setSelectedValve] = useState({
-    directionality: "CB",
-    size: "02",
-    pressureClass: "015",
-    stages: "1",
-    trimType: "S",
-    style: "L",
+    directionality: "",
+    size: "",
+    pressureClass: "",
+    stages: "",
+    trimType: "",
+    style: "",
   });
 
-  /*
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   4.        PIPEWORK STATE
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  */
+  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   const [pipework, setPipework] = useState({
     inletPipeSize: "2",
@@ -60,11 +55,9 @@ function App() {
     outletPipeSchedule: "40",
   });
 
-  /*
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   5.        PIPEWORK OPTIONS
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  */
+  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   const pipeSizeOptions = [
     "2", "3", "4", "6", "8", "10",
@@ -77,12 +70,10 @@ function App() {
     "5", "10", "20", "40", "80", "160",
     "STD", "XS", "XXS", "5S", "10S", "20S", "40S",
   ];
-
-  /*
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  
+  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   6.        DATABASE STATE
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  */
+  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   const [trimDatabase, setTrimDatabase] = useState([]);
   const [trimDatabaseError, setTrimDatabaseError] = useState(null);
@@ -91,11 +82,9 @@ function App() {
   const [fluidDatabaseError, setFluidDatabaseError] = useState(null);
   const [selectedFluidName, setSelectedFluidName] = useState("");
 
-  /*
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   7.        LOAD TRIM DATABASE
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  */
+  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   useEffect(() => {
     loadTrimDatabase()
@@ -110,11 +99,9 @@ function App() {
       });
   }, []);
 
-  /*
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   8.        LOAD FLUID DATABASE
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  */
+  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   useEffect(() => {
     loadFluidDatabase()
@@ -129,11 +116,9 @@ function App() {
       });
   }, []);
 
-  /*
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   9.        SET DEFAULT FLUID
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  */
+  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   useEffect(() => {
     if (selectedFluidName || fluidDatabase.length === 0) {
@@ -143,9 +128,9 @@ function App() {
     setSelectedFluidName(fluidDatabase[0].fluidName);
   }, [fluidDatabase, selectedFluidName]);
 
-  {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   10.        SELECTED FLUID LOOKUP
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
+  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   const selectedFluid = useMemo(() => {
     return (
@@ -154,9 +139,9 @@ function App() {
     );
   }, [fluidDatabase, selectedFluidName]);
 
-  {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   11.        SYNC SELECTED FLUID TO INPUTS
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
+  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
   
   useEffect(() => {
     if (!selectedFluid) {
@@ -169,9 +154,9 @@ function App() {
     }));
   }, [selectedFluid]);
 
-  {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   12.        SELECTED VALVE CODE
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
+  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   const selectedValveCode = useMemo(() => {
     const stageCode = `${selectedValve.stages}001`;
@@ -186,9 +171,9 @@ function App() {
     ].join("-");
   }, [selectedValve]);
 
-  {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   13.        SELECTED TRIM LOOKUP
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
+  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   const selectedTrim = useMemo(() => {
     return (
@@ -200,9 +185,9 @@ function App() {
 
   const selectedTrimDesignCv = selectedTrim?.designCvNumeric ?? null;
 
-  {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   14.        CALCULATION RESULT
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
+  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   const result = useMemo(() => {
     if (fluidType === "liquid") {
@@ -216,9 +201,9 @@ function App() {
     };
   }, [fluidType, inputs]);
 
-  {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   15.        UPDATE FUNCTIONS
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
+  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   function updateInput(field, value) {
     setInputs((current) => ({
@@ -241,30 +226,22 @@ function App() {
     }));
   }
 
-  {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   16.        APP MODE CLASS
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
+  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   const appModeClass = fluidType === "liquid" ? "mode-liquid" : "mode-gas";
 
-  {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   17.        COMPONENT RENDER
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
+  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   return (
     <main className={`app-shell ${appModeClass}`}>
       
-      {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-      17a.        HERO SECTION
-      XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
-
       <section className="hero">
         <div>
           
-          {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-          17b.        TITLE ROW
-          XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
-
           <div className="title-row">
             <p className="eyebrow">
               <b>IEC60534 Control Valve Sizing</b>
@@ -272,16 +249,7 @@ function App() {
             <span className="version-label">Version 0.1.2</span>
           </div>
 
-          
-          {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-          17c.        FLUID CONTROLS WRAPPER
-          XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
-
           <div className="fluid-controls">
-
-            {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-            17h.        PROJECT DETAILS ROW
-            XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
 
             <div className="project-details-row">
               <div className="project-detail-field project-name-field">
@@ -531,140 +499,24 @@ function App() {
       XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}  
 
       <section className="content-grid">
-
-        {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-        17k.        TRIM SELECTION PANEL
-        XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
         
-        <section className="panel">
-          <div className="panel-header">
-            <div>
-              <h2>Trim selection</h2>
-            </div>
-          </div>
+        <TrimSelectionPanel
+          selectedValve={selectedValve}
+          selectedValveCode={selectedValveCode}
+          selectedTrim={selectedTrim}
+          selectedTrimDesignCv={selectedTrimDesignCv}
+          onSelectedValveChange={updateSelectedValve}
+        />       
 
-          <div className="input-grid">
-            <label>
-              Directionality
-              <select
-                value={selectedValve.directionality}
-                onChange={(event) =>
-                  updateSelectedValve("directionality", event.target.value)
-                }
-              >
-                <option value="CB">Bi-directional</option>
-                <option value="CU">Uni-directional</option>
-              </select>
-            </label>
-
-            <label>
-              Size, inches
-              <select
-                value={selectedValve.size}
-                onChange={(event) =>
-                  updateSelectedValve("size", event.target.value)
-                }
-              >
-                <option value="01">1 inch</option>
-                <option value="015">1.5 inch</option>
-                <option value="02">2 inch</option>
-                <option value="03">3 inch</option>
-                <option value="04">4 inch</option>
-                <option value="06">6 inch</option>
-                <option value="08">8 inch</option>
-                <option value="10">10 inch</option>
-                <option value="12">12 inch</option>
-              </select>
-            </label>
-
-            <label>
-              Class
-              <select
-                value={selectedValve.pressureClass}
-                onChange={(event) =>
-                  updateSelectedValve("pressureClass", event.target.value)
-                }
-              >
-                <option value="015">150#</option>
-                <option value="030">300#</option>
-                <option value="060">600#</option>
-                <option value="090">900#</option>
-                <option value="150">1500#</option>
-                <option value="250">2500#</option>
-              </select>
-            </label>
-
-            <label>
-              No. of Stages
-              <select
-                value={selectedValve.stages}
-                onChange={(event) =>
-                  updateSelectedValve("stages", event.target.value)
-                }
-              >
-                <option value="1">1</option>
-                <option value="2">2</option>
-                <option value="3">3</option>
-                <option value="4">4</option>
-              </select>
-            </label>
-
-            <label>
-              Type
-              <select
-                value={selectedValve.trimType}
-                onChange={(event) =>
-                  updateSelectedValve("trimType", event.target.value)
-                }
-              >
-                <option value="S">S - Slotted</option>
-                <option value="H">H - Holes</option>
-              </select>
-            </label>
-
-            <label>
-              Characteristic
-              <select
-                value={selectedValve.style}
-                onChange={(event) =>
-                  updateSelectedValve("style", event.target.value)
-                }
-              >
-                <option value="L">L - Linear</option>
-                <option value="E">E - Equal percentage</option>
-                <option value="Q">Q - Equal-linear</option>
-              </select>
-            </label>
-          </div>
-
-          <div className="result-card">
-            <span className="result-label">Selected trim code</span>
-            <strong>{selectedValveCode}</strong>
-          </div>
-
-          <div className="result-card">
-            <span className="result-label">Selected trim design Cv</span>
-
-            {selectedTrim ? (
-              <strong>{selectedTrimDesignCv}</strong>
-            ) : (
-              <strong>Not found in database</strong>
-            )}
-          </div>
-        </section>
-
-        {/* XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-        17l.        INPUT PANEL
-        XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX */}       
-
-        <InputPanel inputs={inputs} onInputChange={updateInput} />
-
-        {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-        17m.        RESULT PANEL
-        XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
+        <ProcessCasesPanel
+          inputs={inputs}
+          onInputChange={updateInput}
+        />
 
         <ResultPanel inputs={inputs} result={result} />
+      
       </section>
+
     </main>
   );
 }
