@@ -1,0 +1,31 @@
+.content-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+}
+
+.sizing-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 3fr);
+  gap: 24px;
+  width: 100%;
+  align-items: start;
+}
+
+.sizing-input-area,
+.sizing-results-area {
+  min-width: 0;
+  width: 100%;
+}
+
+.sizing-input-area .process-cases-panel,
+.sizing-results-area .results-panel {
+  width: 100%;
+}
+
+@media (max-width: 1000px) {
+  .sizing-workspace {
+    grid-template-columns: 1fr;
+  }
+}

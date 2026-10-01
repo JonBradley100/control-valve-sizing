@@ -27,7 +27,10 @@ function App() {
     fluidName: "",
     caseName: "Case 1",
     flowRateGpm: 100,
+    densityMode: "sg",
     specificGravity: 1,
+    density: 1000,
+    densityUnit: "kg/m³",
     pressureDropPsi: 10,
   });
 
@@ -499,7 +502,7 @@ function App() {
       XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}  
 
       <section className="content-grid">
-        
+  
         <TrimSelectionPanel
           selectedValve={selectedValve}
           selectedValveCode={selectedValveCode}
@@ -508,13 +511,19 @@ function App() {
           onSelectedValveChange={updateSelectedValve}
         />       
 
-        <ProcessCasesPanel
-          inputs={inputs}
-          onInputChange={updateInput}
-        />
+        <div className="sizing-workspace">
+          <div className="sizing-input-area">
+            <ProcessCasesPanel
+              inputs={inputs}
+              onInputChange={updateInput}
+            />
+          </div>
 
-        <ResultPanel inputs={inputs} result={result} />
-      
+          <div className="sizing-results-area">
+            <ResultPanel inputs={inputs} result={result} />
+          </div>
+        </div>
+
       </section>
 
     </main>

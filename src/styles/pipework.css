@@ -1,0 +1,101 @@
+.fluid-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem;
+  margin: 5px 0px 15px 0px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+.fluid-toggle button {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.4rem 0.85rem;
+  font-weight: 700;
+  font-size: 0.65rem;
+  line-height: 0.5;
+  cursor: pointer;
+  color: #475569;
+  background: transparent;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.fluid-toggle button:hover {
+  transform: translateY(-1px);
+}
+
+.fluid-toggle button.active {
+  color: #ffffff;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.18);
+}
+
+.fluid-toggle-row {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.pipework-main-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  width: 100%;
+  margin-bottom: 0px;
+}
+
+.pipework-column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.fluid-column {
+  padding-top: 0;
+  transform: translateX(-5rem);
+}
+
+.fluid-selector-row {
+  display: grid;
+  grid-template-columns: 8.5rem auto;
+  align-items: center;
+  column-gap: 0.4rem;
+}
+
+.fluid-select-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.fluid-select {
+  width: 9rem;
+  min-width: 9rem;
+  text-align: center;
+  text-align-last: center;
+}
+
+.pipe-select {
+  width: 3rem;
+  min-width: 3rem;
+  text-align: center;
+  text-align-last: center;
+}
+
+.main-fluid-select {
+  width: 9rem;
+  min-width: 9rem;
+  text-align: center;
+}
+
+.pipework-bottom-gap {
+  height: 0.5rem;
+}

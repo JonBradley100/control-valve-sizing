@@ -1,0 +1,13 @@
+.panel-header h2 {
+  font-size: 16px;
+  font-weight: 600;
+  margin-top: 20px;
+  padding-left: 30px;
+  text-align: left;
+}
+
+.panel {
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.75);
+}

@@ -1,46 +1,51 @@
-import { formatNumber } from "../utils/formatNumber";
+function ResultPanel({ result }) {
+  const requiredCv =
+    result?.requiredCv !== null && result?.requiredCv !== undefined
+      ? Number(result.requiredCv).toFixed(2)
+      : "--";
 
-function ResultPanel({ inputs, result }) {
+  const noise =
+    result?.noise !== null && result?.noise !== undefined
+      ? Number(result.noise).toFixed(1)
+      : "--";
+
+  const strokePercent =
+    result?.strokePercent !== null && result?.strokePercent !== undefined
+      ? Number(result.strokePercent).toFixed(1)
+      : "--";
+
   return (
-    <div className="panel result-panel">
-      <h2>Result</h2>
-
-      {result ? (
-        <>
-          <div className="result-value">
-            <span>Required Cv</span>
-            <strong>{formatNumber(result.requiredCv, 2)}</strong>
-          </div>
-
-          <div className="formula-box">
-            <h3>Calculation used</h3>
-            <p>Cv = Q × √(SG / ΔP)</p>
-            <p>
-              Cv = {inputs.flowRateGpm} × √({inputs.specificGravity} /{" "}
-              {inputs.pressureDropPsi})
-            </p>
-          </div>
-
-          <div className="note-box">
-            <strong>{result.calculationBasis}</strong>
-            <p>{result.flowRegime}</p>
-
-            {result.warnings.length > 0 && (
-              <ul>
-                {result.warnings.map((warning) => (
-                  <li key={warning}>{warning}</li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </>
-      ) : (
-        <div className="empty-result">
-          Enter positive values for flow rate, specific gravity and pressure
-          drop.
+    <section className="panel results-panel">
+      <div className="panel-header">
+        <div>
+          <h2>Results</h2>
         </div>
-      )}
-    </div>
+      </div>
+
+      <div className="results-table-wrapper">
+        <div className="results-table">
+          <div className="results-header results-row">
+            <div>C<sub>v</sub></div>
+            <div>Noise, dBA</div>
+            <div>Stroke%</div>
+          </div>
+
+          <div className="results-row">
+            <div className="result-cell">
+              <span>{requiredCv}</span>
+            </div>
+
+            <div className="result-cell">
+              <span>{noise}</span>
+            </div>
+
+            <div className="result-cell">
+              <span>{strokePercent}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
