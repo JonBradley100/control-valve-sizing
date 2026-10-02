@@ -1,4 +1,10 @@
-function ProcessCasesPanel({ inputs, onInputChange }) {
+function ProcessCasesPanel({
+  inputs,
+  onInputChange,
+  onProcessCaseChange,
+}) {
+  const processCase = inputs.processCases[0];
+
   return (
     <section className="panel process-cases-panel">
       <div className="panel-header">
@@ -9,27 +15,19 @@ function ProcessCasesPanel({ inputs, onInputChange }) {
 
       <div className="process-cases-table-wrapper">
         <div className="process-cases-table">
-          <div className="process-cases-header process-cases-row">
+          <div
+            className={`process-cases-header process-cases-row ${
+              inputs.densityMode === "rho" ? "density-mode" : "sg-mode"
+            }`}
+          >
             <div>Case</div><div></div><div>Q/m</div><div></div>
             <div></div>
             <div className="density-toggle-cell">
-              <span
-                className={
-                  inputs.densityMode === "sg"
-                    ? "density-toggle-label active"
-                    : "density-toggle-label"
-                }
-              >
-                S.G.
-              </span>
-
               <button
                 type="button"
-                className={
-                  inputs.densityMode === "rho"
-                    ? "density-toggle-switch active"
-                    : "density-toggle-switch"
-                }
+                className={`density-toggle-pill ${
+                  inputs.densityMode === "rho" ? "rho-active" : "sg-active"
+                }`}
                 onClick={() =>
                   onInputChange(
                     "densityMode",
@@ -38,30 +36,28 @@ function ProcessCasesPanel({ inputs, onInputChange }) {
                 }
                 aria-label="Toggle between specific gravity and density"
               >
-                <span className="density-toggle-thumb" />
+                <span className="density-toggle-slider" />
+                <span className="density-toggle-option">S.G.</span>
+                <span className="density-toggle-option">ρ</span>
               </button>
-
-              <span
-                className={
-                  inputs.densityMode === "rho"
-                    ? "density-toggle-label active"
-                    : "density-toggle-label"
-                }
-              >
-                ρ
-              </span>
             </div>
+
+            {inputs.densityMode === "rho" && <div></div>}
             <div></div><div>T</div><div></div>
             <div></div><div>P<sub>In</sub></div><div>P<sub>Out</sub></div><div></div>
           </div>
 
-          <div className="process-cases-row">
+          <div
+            className={`process-cases-row ${
+              inputs.densityMode === "rho" ? "density-mode" : "sg-mode"
+            }`}
+          >
             <div className="process-case-cell">
               <input
                 type="text"
-                value={inputs.caseName}
+                value={processCase.caseName}
                 onChange={(event) =>
-                  onInputChange("caseName", event.target.value)
+                  onProcessCaseChange(processCase.id, "caseName", event.target.value)
                 }
                 placeholder="Case 1"
               />
@@ -161,22 +157,22 @@ function ProcessCasesPanel({ inputs, onInputChange }) {
             <div className="process-case-cell">
               <input
                 type="number"
-                value={inputs.pressure}
+                value={inputs.pressureIn}
                 onChange={(event) =>
                   onInputChange("pressure", event.target.value)
                 }
-                placeholder="100"
+                placeholder="20"
               />
             </div>
 
             <div className="process-case-cell">
               <input
                 type="number"
-                value={inputs.pressure}
+                value={inputs.pressureOut}
                 onChange={(event) =>
                   onInputChange("pressure", event.target.value)
                 }
-                placeholder="100"
+                placeholder="15"
               />
             </div>
 

@@ -25,13 +25,25 @@ function App() {
     itemNumber: "",
     tagNumber: "LV-1001",
     fluidName: "",
-    caseName: "Case 1",
-    flowRateGpm: 100,
+
     densityMode: "sg",
-    specificGravity: 1,
-    density: 1000,
     densityUnit: "kg/m³",
-    pressureDropPsi: 10,
+
+    processCases: [
+      {
+        id: 1,
+        caseName: "Case 1",
+        flowRate: 100,
+        flowUnit: "m3/h",
+        specificGravity: 1,
+        density: 1000,
+        temperature: 60,
+        temperatureUnit: "°C",
+        pressureIn: 100,
+        pressureOut: 90,
+        pressureUnit: "barg",
+      },
+    ],
   });
 
   /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
@@ -212,6 +224,20 @@ function App() {
     setInputs((current) => ({
       ...current,
       [field]: value,
+    }));
+  }
+
+  function updateProcessCase(caseId, field, value) {
+    setInputs((current) => ({
+      ...current,
+      processCases: current.processCases.map((processCase) =>
+        processCase.id === caseId
+          ? {
+              ...processCase,
+              [field]: value,
+            }
+          : processCase
+      ),
     }));
   }
 
@@ -516,6 +542,7 @@ function App() {
             <ProcessCasesPanel
               inputs={inputs}
               onInputChange={updateInput}
+              onProcessCaseChange={updateProcessCase}
             />
           </div>
 
