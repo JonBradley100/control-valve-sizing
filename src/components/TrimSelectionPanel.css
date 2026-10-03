@@ -26,6 +26,11 @@
   gap: 4px 8px;
 }
 
+.trim-selection-panel select {
+  text-align: center;
+  text-align-last: center;
+}
+
 .trim-selection-panel .trim-selection-grid {
   display: grid;
   grid-template-columns: repeat(6, 110px);
