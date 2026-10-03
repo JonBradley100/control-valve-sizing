@@ -1,18 +1,14 @@
 function ResultPanel({ result }) {
+  const firstCaseResult = result?.processCaseResults?.[0];
+
   const requiredCv =
-    result?.requiredCv !== null && result?.requiredCv !== undefined
-      ? Number(result.requiredCv).toFixed(2)
+    firstCaseResult?.requiredCv !== null &&
+    firstCaseResult?.requiredCv !== undefined
+      ? Number(firstCaseResult.requiredCv).toFixed(2)
       : "--";
 
-  const noise =
-    result?.noise !== null && result?.noise !== undefined
-      ? Number(result.noise).toFixed(1)
-      : "--";
-
-  const strokePercent =
-    result?.strokePercent !== null && result?.strokePercent !== undefined
-      ? Number(result.strokePercent).toFixed(1)
-      : "--";
+  const noise = "--";
+  const strokePercent = "--";
 
   return (
     <section className="panel results-panel">
@@ -25,7 +21,9 @@ function ResultPanel({ result }) {
       <div className="results-table-wrapper">
         <div className="results-table">
           <div className="results-header results-row">
-            <div>C<sub>v</sub></div>
+            <div>
+              C<sub>v</sub>
+            </div>
             <div>Noise, dBA</div>
             <div>Stroke%</div>
           </div>

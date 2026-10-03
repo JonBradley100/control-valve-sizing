@@ -6,6 +6,8 @@ import { calculateLiquidCv } from "./calculations/iec60534/liquidSizing";
 import ResultPanel from "./components/ResultPanel";
 import TrimSelectionPanel from "./components/TrimSelectionPanel";
 import ProcessCasesPanel from "./components/ProcessCasesPanel";
+import { calculateLiquidSizing } from "./calculations/iec60534/liquidSizing";
+
 
 function App() {
   
@@ -206,11 +208,11 @@ function App() {
 
   const result = useMemo(() => {
     if (fluidType === "liquid") {
-      return calculateLiquidCv(inputs);
+      return calculateLiquidSizing(inputs);
     }
 
     return {
-      requiredCv: null,
+      processCaseResults: [],
       status: "Gas sizing module not yet implemented",
       warnings: ["Gas sizing will be added in the next calculation module."],
     };
