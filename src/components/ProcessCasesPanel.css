@@ -4,6 +4,7 @@
   gap: 1rem;
 }
 
+
 .process-cases-table-wrapper {
   padding: 0 1.5rem 1.5rem;
 }
@@ -161,4 +162,66 @@
   line-height: 1;
   color: #cbd5e1;
   user-select: none;
+}
+
+.add-case-button {
+  border: none;
+  background: #b91c1c;
+  color: #ffffff;
+  font-weight: 700;
+  padding-top: 10px;
+  padding-right: 50px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.55rem;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: 0 2px 5px rgba(185, 28, 28, 0.14);
+}
+
+.add-case-button:hover {
+  background: #991b1b;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 9px rgba(185, 28, 28, 0.22);
+}
+
+.add-case-button:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 5px rgba(185, 28, 28, 0.16);
+}
+
+
+.process-cases-panel .panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-right: 100px;
+  
+}
+
+.process-cases-panel .panel-header h2 {
+  margin: 0;
+  padding-top: 10px;
+}
+
+.process-cases-panel .panel-header .add-case-button {
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+  width: auto;
+  padding: 0.22rem 0.48rem;
+
+  font-size: 0.68rem;
+  line-height: 1;
+
+  border-radius: 999px;
+  border: none;
+
+  background: #b91c1c;
+  color: #ffffff;
+
+  font-weight: 700;
+  box-shadow: 0 3px 7px rgba(185, 28, 28, 0.16);
+  transform: translateY(6px);
 }

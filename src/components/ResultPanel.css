@@ -28,9 +28,9 @@
 /* Each row */
 .results-row {
   display: grid;
-  grid-template-columns: 90px 90px 90px;
-  width: 100%;
-  min-height: 24px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  align-items: center;
 }
 
 /* Header row */
@@ -44,13 +44,15 @@
   background: rgba(15, 23, 42, 0.35);
 }
 
+.results-header > div {
+  white-space: nowrap;
+}
 /* Cells */
 .result-cell {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 24px;
-  padding: 4px 4px;
+  padding: 7px 4px;
   box-sizing: border-box;
   font-size: 10px;
   text-align: center;
@@ -68,4 +70,9 @@
   line-height: 1.2;
   text-align: center;
   box-sizing: border-box;
+}
+
+.results-panel .panel-header h2 {
+  margin: 0;
+  padding-top: 10px;
 }

@@ -1,14 +1,5 @@
 function ResultPanel({ result }) {
-  const firstCaseResult = result?.processCaseResults?.[0];
-
-  const requiredCv =
-    firstCaseResult?.requiredCv !== null &&
-    firstCaseResult?.requiredCv !== undefined
-      ? Number(firstCaseResult.requiredCv).toFixed(2)
-      : "--";
-
-  const noise = "--";
-  const strokePercent = "--";
+  const processCaseResults = result?.processCaseResults || [];
 
   return (
     <section className="panel results-panel">
@@ -28,19 +19,48 @@ function ResultPanel({ result }) {
             <div>Stroke%</div>
           </div>
 
-          <div className="results-row">
-            <div className="result-cell">
-              <span>{requiredCv}</span>
-            </div>
+          {processCaseResults.length > 0 ? (
+            processCaseResults.map((caseResult) => {
+              const requiredCv =
+                caseResult?.requiredCv !== null &&
+                caseResult?.requiredCv !== undefined
+                  ? Number(caseResult.requiredCv).toFixed(2)
+                  : "--";
 
-            <div className="result-cell">
-              <span>{noise}</span>
-            </div>
+              const noise = "--";
+              const strokePercent = "--";
 
-            <div className="result-cell">
-              <span>{strokePercent}</span>
+              return (
+                <div className="results-row" key={caseResult.id}>
+                  <div className="result-cell">
+                    <span>{requiredCv}</span>
+                  </div>
+
+                  <div className="result-cell">
+                    <span>{noise}</span>
+                  </div>
+
+                  <div className="result-cell">
+                    <span>{strokePercent}</span>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div className="results-row">
+              <div className="result-cell">
+                <span>--</span>
+              </div>
+
+              <div className="result-cell">
+                <span>--</span>
+              </div>
+
+              <div className="result-cell">
+                <span>--</span>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </section>

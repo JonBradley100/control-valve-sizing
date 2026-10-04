@@ -267,6 +267,30 @@ function App() {
   17.        COMPONENT RENDER
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
+  function addProcessCase() {
+    setInputs((currentInputs) => {
+      const lastCase =
+        currentInputs.processCases[currentInputs.processCases.length - 1];
+
+      const nextId =
+        currentInputs.processCases.length > 0
+          ? Math.max(...currentInputs.processCases.map((processCase) => processCase.id)) + 1
+          : 1;
+
+      const newProcessCase = {
+        ...lastCase,
+        id: nextId,
+        caseName: `Case ${nextId}`,
+      };
+
+      return {
+        ...currentInputs,
+        processCases: [...currentInputs.processCases, newProcessCase],
+      };
+    });
+  }
+
+
   return (
     <main className={`app-shell ${appModeClass}`}>
       
@@ -545,6 +569,7 @@ function App() {
               inputs={inputs}
               onInputChange={updateInput}
               onProcessCaseChange={updateProcessCase}
+              onAddProcessCase={addProcessCase}
             />
           </div>
 
