@@ -3,6 +3,7 @@ function ProcessCasesPanel({
   onInputChange,
   onProcessCaseChange,
   onAddProcessCase,
+  onDeleteProcessCase,
 }) {
   return (
     <section className="panel process-cases-panel">
@@ -268,6 +269,18 @@ function ProcessCasesPanel({
                   <option value="MPaa">MPaa</option>
                 </select>
               </div>
+
+              <div className="process-case-cell delete-case-cell">
+                <button
+                  type="button"
+                  className="delete-case-button"
+                  onClick={() => onDeleteProcessCase(processCase.id)}
+                  aria-label={`Delete ${processCase.caseName}`}
+                >
+                  ×
+                </button>
+              </div>
+
             </div>
           ))}
         </div>

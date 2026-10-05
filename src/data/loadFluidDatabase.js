@@ -43,6 +43,15 @@ function toNumber(value) {
   return Number.isFinite(numberValue) ? numberValue : null;
 }
 
+function normalizePhase(value) {
+  const phase = String(value || "").trim().toLowerCase();
+
+  if (phase === "liquid") return "liquid";
+  if (phase === "gas") return "gas";
+
+  return "";
+}
+
 export async function loadFluidDatabase() {
   const response = await fetch("/data/fluidData.csv");
 
@@ -71,11 +80,18 @@ export async function loadFluidDatabase() {
       return row;
     }, {});
 
+    if (index === 0) {
+      console.log("CSV headers:", headers);
+      console.log("First CSV values:", values);
+      console.log("First rawRow:", rawRow);
+    }
+
     return {
       id: `${rawRow.fluid || "fluid"}-${index}`,
 
-      // Main display field
+      // Main display fields
       fluidName: rawRow.fluid || "",
+      phase: normalizePhase(rawRow.phase),
 
       // Real CSV fields
       rmm: toNumber(rawRow.rmm),

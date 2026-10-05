@@ -25,11 +25,11 @@
 }
 
 .process-cases-row.sg-mode {
-  grid-template-columns: 110px 10px 70px 60px 10px 60px 10px 70px 50px 10px 60px 60px 60px;
+  grid-template-columns: 110px 10px 70px 60px 10px 60px 10px 70px 50px 10px 60px 60px 60px 28px;
 }
 
 .process-cases-row.density-mode {
-  grid-template-columns: 110px 10px 70px 60px 10px 60px 70px 10px 70px 50px 10px 60px 60px 60px;
+  grid-template-columns: 110px 10px 70px 60px 10px 60px 70px 10px 70px 50px 10px 60px 60px 60px 28px;
 }
 
 .process-cases-header {
@@ -224,4 +224,43 @@
   font-weight: 700;
   box-shadow: 0 3px 7px rgba(185, 28, 28, 0.16);
   transform: translateY(6px);
+}
+
+.delete-case-button {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  margin-left: 8px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ef4444, #b91c1c);
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(185, 28, 28, 0.35);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    background 0.15s ease;
+}
+
+.delete-case-button:hover {
+  background: linear-gradient(135deg, #f87171, #dc2626);
+  box-shadow: 0 4px 10px rgba(185, 28, 28, 0.45);
+  transform: translateY(-1px);
+}
+
+.delete-case-button:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 3px rgba(185, 28, 28, 0.35);
+}
+
+.delete-case-button:focus-visible {
+  outline: 2px solid rgba(239, 68, 68, 0.35);
+  outline-offset: 2px;
 }

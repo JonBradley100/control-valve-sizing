@@ -8,7 +8,7 @@
 .sizing-workspace {
   display: grid;
   grid-template-columns: minmax(0, 7fr) minmax(0, 3fr);
-  gap: 24px;
+  gap: 4px;
   width: 100%;
   align-items: start;
 }

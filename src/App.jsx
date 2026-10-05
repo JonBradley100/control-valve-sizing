@@ -2,15 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { loadTrimDatabase } from "./data/loadTrimDatabase";
 import { loadFluidDatabase } from "./data/loadFluidDatabase";
 import "./App.css";
-import { calculateLiquidCv } from "./calculations/iec60534/liquidSizing";
 import ResultPanel from "./components/ResultPanel";
 import TrimSelectionPanel from "./components/TrimSelectionPanel";
 import ProcessCasesPanel from "./components/ProcessCasesPanel";
 import { calculateLiquidSizing } from "./calculations/iec60534/liquidSizing";
 
-
 function App() {
-  
   /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   1.        FLUID TYPE STATE
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
@@ -48,6 +45,15 @@ function App() {
     ],
   });
 
+  const deleteProcessCase = (caseId) => {
+    setInputs((previousInputs) => ({
+      ...previousInputs,
+      processCases: previousInputs.processCases.filter(
+        (processCase) => processCase.id !== caseId
+      ),
+    }));
+  };
+
   /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   3.        SELECTED VALVE STATE
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
@@ -77,17 +83,49 @@ function App() {
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   const pipeSizeOptions = [
-    "2", "3", "4", "6", "8", "10",
-    "12", "14", "16", "18", "20", "22",
-    "24", "26", "28", "30", "32", "34",
-    "36", "38", "40", "42", "44", "46", "48",
+    "2",
+    "3",
+    "4",
+    "6",
+    "8",
+    "10",
+    "12",
+    "14",
+    "16",
+    "18",
+    "20",
+    "22",
+    "24",
+    "26",
+    "28",
+    "30",
+    "32",
+    "34",
+    "36",
+    "38",
+    "40",
+    "42",
+    "44",
+    "46",
+    "48",
   ];
 
   const scheduleOptions = [
-    "5", "10", "20", "40", "80", "160",
-    "STD", "XS", "XXS", "5S", "10S", "20S", "40S",
+    "5",
+    "10",
+    "20",
+    "40",
+    "80",
+    "160",
+    "STD",
+    "XS",
+    "XXS",
+    "5S",
+    "10S",
+    "20S",
+    "40S",
   ];
-  
+
   /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   6.        DATABASE STATE
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
@@ -98,6 +136,10 @@ function App() {
   const [fluidDatabase, setFluidDatabase] = useState([]);
   const [fluidDatabaseError, setFluidDatabaseError] = useState(null);
   const [selectedFluidName, setSelectedFluidName] = useState("");
+
+  const filteredFluidDatabase = fluidDatabase.filter(
+    (fluid) => fluid.phase === fluidType
+  );
 
   /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   7.        LOAD TRIM DATABASE
@@ -138,12 +180,12 @@ function App() {
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   useEffect(() => {
-    if (selectedFluidName || fluidDatabase.length === 0) {
+    if (selectedFluidName || filteredFluidDatabase.length === 0) {
       return;
     }
 
-    setSelectedFluidName(fluidDatabase[0].fluidName);
-  }, [fluidDatabase, selectedFluidName]);
+    setSelectedFluidName(filteredFluidDatabase[0].fluidName);
+  }, [filteredFluidDatabase, selectedFluidName]);
 
   /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   10.        SELECTED FLUID LOOKUP
@@ -159,16 +201,32 @@ function App() {
   /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   11.        SYNC SELECTED FLUID TO INPUTS
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
-  
+
   useEffect(() => {
     if (!selectedFluid) {
       return;
     }
 
-    setInputs((current) => ({
-      ...current,
-      fluidName: selectedFluid.fluidName,
-    }));
+    const selectedDensity = Number(selectedFluid.rho);
+
+    setInputs((current) => {
+      if (!Number.isFinite(selectedDensity)) {
+        return {
+          ...current,
+          fluidName: selectedFluid.fluidName,
+        };
+      }
+
+      return {
+        ...current,
+        fluidName: selectedFluid.fluidName,
+        processCases: current.processCases.map((processCase) => ({
+          ...processCase,
+          density: selectedDensity,
+          specificGravity: selectedDensity / 1000,
+        })),
+      };
+    });
   }, [selectedFluid]);
 
   /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
@@ -274,7 +332,9 @@ function App() {
 
       const nextId =
         currentInputs.processCases.length > 0
-          ? Math.max(...currentInputs.processCases.map((processCase) => processCase.id)) + 1
+          ? Math.max(
+              ...currentInputs.processCases.map((processCase) => processCase.id)
+            ) + 1
           : 1;
 
       const newProcessCase = {
@@ -290,13 +350,10 @@ function App() {
     });
   }
 
-
   return (
     <main className={`app-shell ${appModeClass}`}>
-      
       <section className="hero">
         <div>
-          
           <div className="title-row">
             <p className="eyebrow">
               <b>IEC60534 Control Valve Sizing</b>
@@ -305,7 +362,6 @@ function App() {
           </div>
 
           <div className="fluid-controls">
-
             <div className="project-details-row">
               <div className="project-detail-field project-name-field">
                 <label htmlFor="project-name">Project Name:</label>
@@ -356,185 +412,186 @@ function App() {
               </div>
             </div>
           </div>
-            
+
+          {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+          17c.        LIQUID / GAS TOGGLE ROW
+          XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
+
+          <div className="fluid-toggle-row">
+            <div className="fluid-toggle" aria-label="Fluid sizing type">
+              <button
+                type="button"
+                className={fluidType === "liquid" ? "active" : ""}
+                onClick={() => {
+                  setFluidType("liquid");
+                  setSelectedFluidName("");
+                }}
+              >
+                Liquid
+              </button>
+
+              <button
+                type="button"
+                className={fluidType === "gas" ? "active" : ""}
+                onClick={() => {
+                  setFluidType("gas");
+                  setSelectedFluidName("");
+                }}
+              >
+                Gas
+              </button>
+            </div>
+          </div>
+
+          {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+          17d.        PIPEWORK MAIN ROW
+          XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
+
+          <div className="pipework-main-row">
             {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-            17c.        LIQUID / GAS TOGGLE ROW
+            17e.        FLUID SELECTOR COLUMN
             XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
 
-            <div className="fluid-toggle-row">
-              <div className="fluid-toggle" aria-label="Fluid sizing type">
-                <button
-                  type="button"
-                  className={fluidType === "liquid" ? "active" : ""}
-                  onClick={() => setFluidType("liquid")}
-                >
-                  Liquid
-                </button>
+            <div className="pipework-column fluid-column">
+              <div className="fluid-selector-row">
+                <label className="fluid-select-label" htmlFor="fluid-select">
+                  Fluid :
+                </label>
 
-                <button
-                  type="button"
-                  className={fluidType === "gas" ? "active" : ""}
-                  onClick={() => setFluidType("gas")}
+                <select
+                  id="fluid-select"
+                  className="fluid-select main-fluid-select"
+                  value={selectedFluidName}
+                  onChange={(event) => {
+                    setSelectedFluidName(event.target.value);
+                  }}
                 >
-                  Gas
-                </button>
+                  {filteredFluidDatabase.length === 0 ? (
+                    <option value="">No fluids loaded</option>
+                  ) : (
+                    filteredFluidDatabase.map((fluid) => (
+                      <option key={fluid.id} value={fluid.fluidName}>
+                        {fluid.fluidName}
+                      </option>
+                    ))
+                  )}
+                </select>
               </div>
             </div>
 
             {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-            17d.        PIPEWORK MAIN ROW
+            17f.        INLET PIPEWORK COLUMN
             XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
-       
-            <div className="pipework-main-row">
-              
-              {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-              17e.        FLUID SELECTOR COLUMN
-              XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
 
-              <div className="pipework-column fluid-column">
-                <div className="fluid-selector-row">
-                  <label className="fluid-select-label" htmlFor="fluid-select">
-                    Fluid :
-                  </label>
+            <div className="pipework-column">
+              <div className="fluid-selector-row">
+                <label
+                  className="fluid-select-label"
+                  htmlFor="inlet-pipe-select"
+                >
+                  Inlet Pipe :
+                </label>
 
-                  <select
-                    id="fluid-select"
-                    className="fluid-select main-fluid-select"
-                    value={selectedFluidName}
-                    onChange={(event) =>
-                      setSelectedFluidName(event.target.value)
-                    }
-                  >
-                    {fluidDatabase.length === 0 ? (
-                      <option value="">No fluids loaded</option>
-                    ) : (
-                      fluidDatabase.map((fluid) => (
-                        <option key={fluid.id} value={fluid.fluidName}>
-                          {fluid.fluidName}
-                        </option>
-                      ))
-                    )}
-                  </select>
-                </div>
+                <select
+                  id="inlet-pipe-select"
+                  className="fluid-select pipe-select"
+                  value={pipework.inletPipeSize}
+                  onChange={(event) =>
+                    updatePipework("inletPipeSize", event.target.value)
+                  }
+                >
+                  {pipeSizeOptions.map((size) => (
+                    <option key={size} value={size}>
+                      {size}&quot;
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              
-              {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-              17f.        INLET PIPEWORK COLUMN
-              XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
-              
+              <div className="fluid-selector-row">
+                <label
+                  className="fluid-select-label"
+                  htmlFor="inlet-schedule-select"
+                >
+                  Inlet Schedule :
+                </label>
 
-              <div className="pipework-column">
-                <div className="fluid-selector-row">
-                  <label
-                    className="fluid-select-label"
-                    htmlFor="inlet-pipe-select"
-                  >
-                    Inlet Pipe :
-                  </label>
-
-                  <select
-                    id="inlet-pipe-select"
-                    className="fluid-select pipe-select"
-                    value={pipework.inletPipeSize}
-                    onChange={(event) =>
-                      updatePipework("inletPipeSize", event.target.value)
-                    }
-                  >
-                    {pipeSizeOptions.map((size) => (
-                      <option key={size} value={size}>
-                        {size}&quot;
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="fluid-selector-row">
-                  <label
-                    className="fluid-select-label"
-                    htmlFor="inlet-schedule-select"
-                  >
-                    Inlet Schedule :
-                  </label>
-
-                  <select
-                    id="inlet-schedule-select"
-                    className="fluid-select pipe-select"
-                    value={pipework.inletPipeSchedule}
-                    onChange={(event) =>
-                      updatePipework("inletPipeSchedule", event.target.value)
-                    }
-                  >
-                    {scheduleOptions.map((schedule) => (
-                      <option key={schedule} value={schedule}>
-                        {schedule}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-              17g.        OUTLET PIPEWORK COLUMN
-              XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
-
-              <div className="pipework-column">
-                <div className="fluid-selector-row">
-                  <label
-                    className="fluid-select-label"
-                    htmlFor="outlet-pipe-select"
-                  >
-                    Outlet Pipe :
-                  </label>
-
-                  <select
-                    id="outlet-pipe-select"
-                    className="fluid-select pipe-select"
-                    value={pipework.outletPipeSize}
-                    onChange={(event) =>
-                      updatePipework("outletPipeSize", event.target.value)
-                    }
-                  >
-                    {pipeSizeOptions.map((size) => (
-                      <option key={size} value={size}>
-                        {size}&quot;
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="fluid-selector-row">
-                  <label
-                    className="fluid-select-label"
-                    htmlFor="outlet-schedule-select"
-                  >
-                    Outlet Schedule :
-                  </label>
-
-                  <select
-                    id="outlet-schedule-select"
-                    className="fluid-select pipe-select"
-                    value={pipework.outletPipeSchedule}
-                    onChange={(event) =>
-                      updatePipework("outletPipeSchedule", event.target.value)
-                    }
-                  >
-                    {scheduleOptions.map((schedule) => (
-                      <option key={schedule} value={schedule}>
-                        {schedule}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <select
+                  id="inlet-schedule-select"
+                  className="fluid-select pipe-select"
+                  value={pipework.inletPipeSchedule}
+                  onChange={(event) =>
+                    updatePipework("inletPipeSchedule", event.target.value)
+                  }
+                >
+                  {scheduleOptions.map((schedule) => (
+                    <option key={schedule} value={schedule}>
+                      {schedule}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
-           
+            {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+            17g.        OUTLET PIPEWORK COLUMN
+            XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
+
+            <div className="pipework-column">
+              <div className="fluid-selector-row">
+                <label
+                  className="fluid-select-label"
+                  htmlFor="outlet-pipe-select"
+                >
+                  Outlet Pipe :
+                </label>
+
+                <select
+                  id="outlet-pipe-select"
+                  className="fluid-select pipe-select"
+                  value={pipework.outletPipeSize}
+                  onChange={(event) =>
+                    updatePipework("outletPipeSize", event.target.value)
+                  }
+                >
+                  {pipeSizeOptions.map((size) => (
+                    <option key={size} value={size}>
+                      {size}&quot;
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="fluid-selector-row">
+                <label
+                  className="fluid-select-label"
+                  htmlFor="outlet-schedule-select"
+                >
+                  Outlet Schedule :
+                </label>
+
+                <select
+                  id="outlet-schedule-select"
+                  className="fluid-select pipe-select"
+                  value={pipework.outletPipeSchedule}
+                  onChange={(event) =>
+                    updatePipework("outletPipeSchedule", event.target.value)
+                  }
+                >
+                  {scheduleOptions.map((schedule) => (
+                    <option key={schedule} value={schedule}>
+                      {schedule}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
 
           {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
           17i.        DATABASE ERROR MESSAGES
           XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
-          
+
           {trimDatabaseError && (
             <div className="database-error">
               Trim database error: {trimDatabaseError}
@@ -551,17 +608,16 @@ function App() {
 
       {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
       17j.        MAIN CONTENT GRID
-      XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}  
+      XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
 
       <section className="content-grid">
-  
         <TrimSelectionPanel
           selectedValve={selectedValve}
           selectedValveCode={selectedValveCode}
           selectedTrim={selectedTrim}
           selectedTrimDesignCv={selectedTrimDesignCv}
           onSelectedValveChange={updateSelectedValve}
-        />       
+        />
 
         <div className="sizing-workspace">
           <div className="sizing-input-area">
@@ -570,6 +626,7 @@ function App() {
               onInputChange={updateInput}
               onProcessCaseChange={updateProcessCase}
               onAddProcessCase={addProcessCase}
+              onDeleteProcessCase={deleteProcessCase}
             />
           </div>
 
@@ -577,9 +634,7 @@ function App() {
             <ResultPanel inputs={inputs} result={result} />
           </div>
         </div>
-
       </section>
-
     </main>
   );
 }
