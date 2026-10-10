@@ -1,9 +1,9 @@
-function ProcessCasesPanel({
-  inputs,
-  onInputChange,
-  onProcessCaseChange,
-  onAddProcessCase,
-  onDeleteProcessCase,
+export default function ProcessCasesPanel({
+  inputs = { densityMode: "sg", densityUnit: "kg/m³", processCases: [] },
+  onInputChange = () => {},
+  onProcessCaseChange = () => {},
+  onAddProcessCase = () => {},
+  onDeleteProcessCase = () => {},
 }) {
   return (
     <section className="panel process-cases-panel">
@@ -60,12 +60,29 @@ function ProcessCasesPanel({
             <div>T</div>
             <div></div>
             <div></div>
+
             <div>
               P<sub>In</sub>
             </div>
+
             <div>
               P<sub>Out</sub>
             </div>
+
+            {/* Inlet/outlet pressure units */}
+            <div></div>
+
+            {/* Gap before vapour pressure */}
+            <div></div>
+
+            <div title="Vapour pressure">
+              p<sub>V</sub>
+            </div>
+
+            {/* Vapour-pressure units */}
+            <div></div>
+
+            {/* Delete button */}
             <div></div>
           </div>
 
@@ -256,6 +273,7 @@ function ProcessCasesPanel({
                       event.target.value
                     )
                   }
+                  aria-label={`Inlet and outlet pressure units for ${processCase.caseName}`}
                 >
                   <option value="barg">barg</option>
                   <option value="bara">bara</option>
@@ -270,6 +288,46 @@ function ProcessCasesPanel({
                 </select>
               </div>
 
+              {/* Gap before vapour pressure */}
+              <div></div>
+
+              <div className="process-case-cell">
+                <input
+                  type="number"
+                  step="any"
+                  value={processCase.vapourPressure ?? ""}
+                  onChange={(event) =>
+                    onProcessCaseChange(
+                      processCase.id,
+                      "vapourPressure",
+                      event.target.value
+                    )
+                  }
+                  aria-label={`Vapour pressure for ${processCase.caseName}`}
+                  title="Vapour pressure"
+                />
+              </div>
+
+              <div className="process-case-cell">
+                <select
+                  value={processCase.vapourPressureUnit ?? "bara"}
+                  onChange={(event) =>
+                    onProcessCaseChange(
+                      processCase.id,
+                      "vapourPressureUnit",
+                      event.target.value
+                    )
+                  }
+                  aria-label={`Vapour-pressure units for ${processCase.caseName}`}
+                >
+                  <option value="bara">bara</option>
+                  <option value="psia">psia</option>
+                  <option value="kPaa">kPaa</option>
+                  <option value="kgcm2a">kgcm²a</option>
+                  <option value="MPaa">MPaa</option>
+                </select>
+              </div>
+
               <div className="process-case-cell delete-case-cell">
                 <button
                   type="button"
@@ -280,7 +338,6 @@ function ProcessCasesPanel({
                   ×
                 </button>
               </div>
-
             </div>
           ))}
         </div>
@@ -288,5 +345,3 @@ function ProcessCasesPanel({
     </section>
   );
 }
-
-export default ProcessCasesPanel;

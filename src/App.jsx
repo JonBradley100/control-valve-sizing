@@ -7,6 +7,182 @@ import TrimSelectionPanel from "./components/TrimSelectionPanel";
 import ProcessCasesPanel from "./components/ProcessCasesPanel";
 import { calculateLiquidSizing } from "./calculations/iec60534/liquidSizing";
 
+/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  HELPER: READ A VALID NUMBER
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+
+function readNumber(value) {
+  if (
+    value === null ||
+    value === undefined ||
+    String(value).trim() === ""
+  ) {
+    return null;
+  }
+
+  const number = Number(value);
+
+  return Number.isFinite(number) ? number : null;
+}
+
+/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  HELPER: CONVERT TEMPERATURE TO KELVIN
+
+  Supports both:
+  °C / °F
+  oC / oF
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+
+function temperatureToKelvin(value, unit) {
+  const temperature = readNumber(value);
+
+  if (temperature === null) {
+    return null;
+  }
+
+  let temperatureK;
+
+  switch (unit) {
+    case "°C":
+    case "oC":
+      temperatureK = temperature + 273.15;
+      break;
+
+    case "°F":
+    case "oF":
+      temperatureK = (temperature - 32) * (5 / 9) + 273.15;
+      break;
+
+    case "K":
+      temperatureK = temperature;
+      break;
+
+    default:
+      return null;
+  }
+
+  if (!Number.isFinite(temperatureK) || temperatureK <= 0) {
+    return null;
+  }
+
+  return temperatureK;
+}
+
+/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  HELPER: ABSOLUTE PRESSURE CONVERSION
+
+  Values are pascals per unit.
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+
+const ABSOLUTE_PRESSURE_FACTORS = {
+  bara: 100000,
+  psia: 6894.757293168,
+  kPaa: 1000,
+  kgcm2a: 98066.5,
+  MPaa: 1000000,
+};
+
+function convertAbsolutePressure(value, fromUnit, toUnit) {
+  const pressure = readNumber(value);
+
+  const fromFactor = ABSOLUTE_PRESSURE_FACTORS[fromUnit];
+  const toFactor = ABSOLUTE_PRESSURE_FACTORS[toUnit];
+
+  if (
+    pressure === null ||
+    pressure < 0 ||
+    !fromFactor ||
+    !toFactor
+  ) {
+    return "";
+  }
+
+  const convertedPressure = (pressure * fromFactor) / toFactor;
+
+  if (!Number.isFinite(convertedPressure)) {
+    return "";
+  }
+
+  return convertedPressure.toFixed(4);
+}
+
+/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  HELPER: CALCULATE VAPOUR PRESSURE
+
+  Uses the user-specified formula:
+  EXP(A - B / (temperatureK + C)) / 760
+
+  The result is treated as bara.
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+
+function calculateCaseVapourPressure(processCase, fluid) {
+  if (!fluid) {
+    return "";
+  }
+
+  const coefficientA = readNumber(fluid.pV_A);
+  const coefficientB = readNumber(fluid.pV_B);
+  const coefficientC = readNumber(fluid.pV_C);
+
+  const temperatureK = temperatureToKelvin(
+    processCase.temperature,
+    processCase.temperatureUnit
+  );
+
+  if (
+    coefficientA === null ||
+    coefficientB === null ||
+    coefficientC === null ||
+    temperatureK === null
+  ) {
+    return "";
+  }
+
+  const denominator = temperatureK + coefficientC;
+
+  if (!Number.isFinite(denominator) || denominator === 0) {
+    return "";
+  }
+
+  const vapourPressureBara =
+    Math.exp(coefficientA - coefficientB / denominator) / 760;
+
+  if (
+    !Number.isFinite(vapourPressureBara) ||
+    vapourPressureBara < 0
+  ) {
+    return "";
+  }
+
+  return convertAbsolutePressure(
+    vapourPressureBara,
+    "bara",
+    processCase.vapourPressureUnit ?? "bara"
+  );
+}
+
+/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  HELPER: CREATE A DEFAULT PROCESS CASE
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+
+function createDefaultProcessCase(id = 1) {
+  return {
+    id,
+    caseName: `Case ${id}`,
+    flowRate: 100,
+    flowUnit: "m3/h",
+    specificGravity: 1,
+    density: 1000,
+    temperature: 60,
+    temperatureUnit: "oC",
+    pressureIn: 100,
+    pressureOut: 90,
+    pressureUnit: "barg",
+    vapourPressure: "",
+    vapourPressureUnit: "bara",
+  };
+}
+
 function App() {
   /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   1.        FLUID TYPE STATE
@@ -28,21 +204,7 @@ function App() {
     densityMode: "sg",
     densityUnit: "kg/m³",
 
-    processCases: [
-      {
-        id: 1,
-        caseName: "Case 1",
-        flowRate: 100,
-        flowUnit: "m3/h",
-        specificGravity: 1,
-        density: 1000,
-        temperature: 60,
-        temperatureUnit: "°C",
-        pressureIn: 100,
-        pressureOut: 90,
-        pressureUnit: "barg",
-      },
-    ],
+    processCases: [createDefaultProcessCase(1)],
   });
 
   const deleteProcessCase = (caseId) => {
@@ -137,8 +299,9 @@ function App() {
   const [fluidDatabaseError, setFluidDatabaseError] = useState(null);
   const [selectedFluidName, setSelectedFluidName] = useState("");
 
-  const filteredFluidDatabase = fluidDatabase.filter(
-    (fluid) => fluid.phase === fluidType
+  const filteredFluidDatabase = useMemo(
+    () => fluidDatabase.filter((fluid) => fluid.phase === fluidType),
+    [fluidDatabase, fluidType]
   );
 
   /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
@@ -193,41 +356,51 @@ function App() {
 
   const selectedFluid = useMemo(() => {
     return (
-      fluidDatabase.find((fluid) => fluid.fluidName === selectedFluidName) ||
-      null
+      filteredFluidDatabase.find(
+        (fluid) => fluid.fluidName === selectedFluidName
+      ) || null
     );
-  }, [fluidDatabase, selectedFluidName]);
+  }, [filteredFluidDatabase, selectedFluidName]);
 
   /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   11.        SYNC SELECTED FLUID TO INPUTS
+
+  Updates:
+  - Fluid name
+  - Density
+  - Specific gravity
+  - Vapour pressure for each process case
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   useEffect(() => {
-    if (!selectedFluid) {
-      return;
-    }
+    const selectedDensity = selectedFluid
+      ? readNumber(selectedFluid.rho)
+      : null;
 
-    const selectedDensity = Number(selectedFluid.rho);
+    setInputs((current) => ({
+      ...current,
+      fluidName: selectedFluid?.fluidName ?? "",
 
-    setInputs((current) => {
-      if (!Number.isFinite(selectedDensity)) {
-        return {
-          ...current,
-          fluidName: selectedFluid.fluidName,
-        };
-      }
-
-      return {
-        ...current,
-        fluidName: selectedFluid.fluidName,
-        processCases: current.processCases.map((processCase) => ({
+      processCases: current.processCases.map((processCase) => {
+        const updatedCase = {
           ...processCase,
-          density: selectedDensity,
-          specificGravity: selectedDensity / 1000,
-        })),
-      };
-    });
-  }, [selectedFluid]);
+          vapourPressureUnit: processCase.vapourPressureUnit ?? "bara",
+        };
+
+        if (selectedDensity !== null) {
+          updatedCase.density = selectedDensity;
+          updatedCase.specificGravity = selectedDensity / 1000;
+        }
+
+        updatedCase.vapourPressure =
+          fluidType === "liquid"
+            ? calculateCaseVapourPressure(updatedCase, selectedFluid)
+            : "";
+
+        return updatedCase;
+      }),
+    }));
+  }, [selectedFluid, fluidType]);
 
   /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   12.        SELECTED VALVE CODE
@@ -290,14 +463,37 @@ function App() {
   function updateProcessCase(caseId, field, value) {
     setInputs((current) => ({
       ...current,
-      processCases: current.processCases.map((processCase) =>
-        processCase.id === caseId
-          ? {
-              ...processCase,
-              [field]: value,
-            }
-          : processCase
-      ),
+
+      processCases: current.processCases.map((processCase) => {
+        if (processCase.id !== caseId) {
+          return processCase;
+        }
+
+        const updatedCase = {
+          ...processCase,
+          [field]: value,
+        };
+
+        // Recalculate when temperature or temperature unit changes.
+        if (field === "temperature" || field === "temperatureUnit") {
+          updatedCase.vapourPressure =
+            fluidType === "liquid"
+              ? calculateCaseVapourPressure(updatedCase, selectedFluid)
+              : "";
+        }
+
+        // Convert the existing value when the pressure unit changes.
+        // This preserves any manually entered vapour pressure.
+        if (field === "vapourPressureUnit") {
+          updatedCase.vapourPressure = convertAbsolutePressure(
+            processCase.vapourPressure,
+            processCase.vapourPressureUnit ?? "bara",
+            value
+          );
+        }
+
+        return updatedCase;
+      }),
     }));
   }
 
@@ -322,7 +518,7 @@ function App() {
   const appModeClass = fluidType === "liquid" ? "mode-liquid" : "mode-gas";
 
   /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  17.        COMPONENT RENDER
+  17.        ADD PROCESS CASE
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   function addProcessCase() {
@@ -338,10 +534,28 @@ function App() {
           : 1;
 
       const newProcessCase = {
+        ...createDefaultProcessCase(nextId),
         ...lastCase,
         id: nextId,
         caseName: `Case ${nextId}`,
+        vapourPressureUnit: lastCase?.vapourPressureUnit ?? "bara",
       };
+
+      // Apply the selected fluid's density if all previous cases
+      // have been deleted and this is a fresh default case.
+      if (!lastCase && selectedFluid) {
+        const selectedDensity = readNumber(selectedFluid.rho);
+
+        if (selectedDensity !== null) {
+          newProcessCase.density = selectedDensity;
+          newProcessCase.specificGravity = selectedDensity / 1000;
+        }
+      }
+
+      newProcessCase.vapourPressure =
+        fluidType === "liquid"
+          ? calculateCaseVapourPressure(newProcessCase, selectedFluid)
+          : "";
 
       return {
         ...currentInputs,
@@ -349,6 +563,10 @@ function App() {
       };
     });
   }
+
+  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  18.        COMPONENT RENDER
+  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   return (
     <main className={`app-shell ${appModeClass}`}>
@@ -414,7 +632,7 @@ function App() {
           </div>
 
           {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-          17c.        LIQUID / GAS TOGGLE ROW
+          18a.        LIQUID / GAS TOGGLE ROW
           XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
 
           <div className="fluid-toggle-row">
@@ -444,12 +662,12 @@ function App() {
           </div>
 
           {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-          17d.        PIPEWORK MAIN ROW
+          18b.        PIPEWORK MAIN ROW
           XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
 
           <div className="pipework-main-row">
             {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-            17e.        FLUID SELECTOR COLUMN
+            18c.        FLUID SELECTOR COLUMN
             XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
 
             <div className="pipework-column fluid-column">
@@ -480,7 +698,7 @@ function App() {
             </div>
 
             {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-            17f.        INLET PIPEWORK COLUMN
+            18d.        INLET PIPEWORK COLUMN
             XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
 
             <div className="pipework-column">
@@ -534,7 +752,7 @@ function App() {
             </div>
 
             {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-            17g.        OUTLET PIPEWORK COLUMN
+            18e.        OUTLET PIPEWORK COLUMN
             XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
 
             <div className="pipework-column">
@@ -589,7 +807,7 @@ function App() {
           </div>
 
           {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-          17i.        DATABASE ERROR MESSAGES
+          18f.        DATABASE ERROR MESSAGES
           XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
 
           {trimDatabaseError && (
@@ -607,7 +825,7 @@ function App() {
       </section>
 
       {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-      17j.        MAIN CONTENT GRID
+      18g.        MAIN CONTENT GRID
       XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
 
       <section className="content-grid">

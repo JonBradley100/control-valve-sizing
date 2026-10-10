@@ -7,7 +7,7 @@ function parseCsvLine(line) {
     const character = line[index];
     const nextCharacter = line[index + 1];
 
-    if (character === '"' && nextCharacter === '"') {
+    if (character === '"' && nextCharacter === '"' && insideQuotes) {
       current += '"';
       index += 1;
     } else if (character === '"') {
@@ -27,17 +27,23 @@ function parseCsvLine(line) {
 
 function normalizeHeader(header) {
   return String(header)
+    .replace(/^\uFEFF/, "")
     .trim()
     .toLowerCase()
     .replace(/\s+/g, "_");
 }
 
 function toNumber(value) {
-  if (value === null || value === undefined || value === "") {
+  if (value === null || value === undefined) {
     return null;
   }
 
   const cleaned = String(value).replace(/,/g, "").trim();
+
+  if (cleaned === "") {
+    return null;
+  }
+
   const numberValue = Number(cleaned);
 
   return Number.isFinite(numberValue) ? numberValue : null;
@@ -86,6 +92,10 @@ export async function loadFluidDatabase() {
       console.log("First rawRow:", rawRow);
     }
 
+    const pV_A = toNumber(rawRow.pv_a);
+    const pV_B = toNumber(rawRow.pv_b);
+    const pV_C = toNumber(rawRow.pv_c);
+
     return {
       id: `${rawRow.fluid || "fluid"}-${index}`,
 
@@ -93,25 +103,33 @@ export async function loadFluidDatabase() {
       fluidName: rawRow.fluid || "",
       phase: normalizePhase(rawRow.phase),
 
-      // Real CSV fields
+      // Fluid properties
       rmm: toNumber(rawRow.rmm),
       kappa: toNumber(rawRow.kappa),
       criticalPressure: toNumber(rawRow.p_crit),
       criticalTemperature: toNumber(rawRow.t_crit),
       w: toNumber(rawRow.w),
 
+      // Heat-capacity coefficients
       cpA: toNumber(rawRow.cp_a),
       cpB: toNumber(rawRow.cp_b),
       cpC: toNumber(rawRow.cp_c),
       cpD: toNumber(rawRow.cp_d),
 
-      vaporPressureA: toNumber(rawRow.pv_a),
-      vaporPressureB: toNumber(rawRow.pv_b),
-      vaporPressureC: toNumber(rawRow.pv_c),
+      // Names used by the updated App.jsx
+      pV_A,
+      pV_B,
+      pV_C,
 
+      // Keep existing names for compatibility
+      vaporPressureA: pV_A,
+      vaporPressureB: pV_B,
+      vaporPressureC: pV_C,
+
+      // Density
       rho: toNumber(rawRow.rho),
 
-      // Grouped objects for later calculation modules
+      // Grouped objects for calculation modules
       cpCoefficients: {
         a: toNumber(rawRow.cp_a),
         b: toNumber(rawRow.cp_b),
@@ -120,9 +138,9 @@ export async function loadFluidDatabase() {
       },
 
       vaporPressureCoefficients: {
-        a: toNumber(rawRow.pv_a),
-        b: toNumber(rawRow.pv_b),
-        c: toNumber(rawRow.pv_c),
+        a: pV_A,
+        b: pV_B,
+        c: pV_C,
       },
 
       // Keep original row for debugging
