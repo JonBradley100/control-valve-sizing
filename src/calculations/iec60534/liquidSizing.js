@@ -1,38 +1,149 @@
+/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  LIQUID SIZING
+
+  Provisional equation:
+  Cv = 1.156 * m / sqrt(1000 * density * dP)
+
+  m       = mass flow in kg/h
+  density = fluid density in kg/m³
+  dP      = pressure difference in bar
+
+  Correction factors are not implemented yet.
+  requiredCv therefore equals provisionalCv.
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+
+const KG_PER_LB = 0.45359237;
+const M3_PER_US_GALLON = 0.003785411784;
+const KG_M3_PER_LB_FT3 = 16.01846337396014;
+const PSI_PER_BAR = 14.503773773;
+
+/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  HELPER: READ A VALID NUMBER
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+
+function readNumber(value) {
+  if (
+    value === null ||
+    value === undefined ||
+    String(value).trim() === ""
+  ) {
+    return null;
+  }
+
+  const number = Number(value);
+
+  return Number.isFinite(number) ? number : null;
+}
+
+/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  MAIN LIQUID SIZING FUNCTION
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+
 export function calculateLiquidSizing(inputs) {
   const processCaseResults = inputs.processCases.map((processCase) => {
-    const flowRate = Number(processCase.flowRate);
-    const pressureIn = Number(processCase.pressureIn);
-    const pressureOut = Number(processCase.pressureOut);
+    const flowRate = readNumber(processCase.flowRate);
+    const pressureIn = readNumber(processCase.pressureIn);
+    const pressureOut = readNumber(processCase.pressureOut);
 
-    const pressureDrop = pressureIn - pressureOut;
+    const pressureDrop =
+      pressureIn !== null && pressureOut !== null
+        ? pressureIn - pressureOut
+        : null;
 
-    const flowRateGpm = convertFlowToGpm(flowRate, processCase.flowUnit);
-    const pressureDropPsi = convertPressureDropToPsi(
+    const densityKgM3 = getDensityKgM3(processCase, inputs);
+
+    const specificGravity =
+      densityKgM3 !== null ? densityKgM3 / 1000 : null;
+
+    const pressureDropBar = convertPressureDropToBar(
       pressureDrop,
       processCase.pressureUnit
     );
 
-    const specificGravity = getSpecificGravity(processCase, inputs);
+    const pressureDropPsi =
+      pressureDropBar !== null
+        ? pressureDropBar * PSI_PER_BAR
+        : null;
+
+    const massFlowKgH = convertFlowToMassKgH(
+      flowRate,
+      processCase.flowUnit,
+      densityKgM3
+    );
+
+    // Retain the existing volumetric-flow result field.
+    const flowRateGpm =
+      massFlowKgH !== null &&
+      densityKgM3 !== null &&
+      densityKgM3 > 0
+        ? massFlowKgH / densityKgM3 / (M3_PER_US_GALLON * 60)
+        : null;
 
     const liquidCvResult = calculateLiquidCv({
-      flowRateGpm,
-      specificGravity,
-      pressureDropPsi,
+      massFlowKgH,
+      densityKgM3,
+      pressureDropBar,
     });
+
+    const inputWarnings = [];
+
+    if (flowRate === null || flowRate <= 0) {
+      inputWarnings.push("Enter a positive flow rate.");
+    } else if (massFlowKgH === null && densityKgM3 > 0) {
+      inputWarnings.push(
+        `Unsupported flow unit: ${processCase.flowUnit}.`
+      );
+    }
+
+    if (densityKgM3 === null || densityKgM3 <= 0) {
+      inputWarnings.push(
+        "Enter a positive density or specific gravity using a supported unit."
+      );
+    }
+
+    if (pressureIn === null || pressureOut === null) {
+      inputWarnings.push("Enter valid inlet and outlet pressures.");
+    } else if (pressureDropBar === null) {
+      inputWarnings.push(
+        `Unsupported pressure unit: ${processCase.pressureUnit}.`
+      );
+    } else if (pressureDropBar <= 0) {
+      inputWarnings.push(
+        "Inlet pressure must be greater than outlet pressure."
+      );
+    }
+
+    if (!liquidCvResult && inputWarnings.length === 0) {
+      inputWarnings.push(
+        "The supplied values did not produce a finite positive Cv."
+      );
+    }
 
     return {
       id: processCase.id,
       caseName: processCase.caseName,
 
+      // Existing result fields.
       flowRateGpm,
       pressureDrop,
       pressureDropPsi,
       specificGravity,
 
+      // Normalized inputs and provisional result.
+      massFlowKgH,
+      densityKgM3,
+      pressureDropBar,
+      provisionalCv: liquidCvResult?.provisionalCv ?? null,
+
       requiredCv: liquidCvResult?.requiredCv ?? null,
       calculationBasis: liquidCvResult?.calculationBasis ?? null,
       flowRegime: liquidCvResult?.flowRegime ?? null,
-      warnings: liquidCvResult?.warnings ?? [],
+
+      warnings: [
+        ...inputWarnings,
+        ...(liquidCvResult?.warnings ?? []),
+      ],
+
       canCalculate: Boolean(liquidCvResult),
     };
   });
@@ -42,82 +153,204 @@ export function calculateLiquidSizing(inputs) {
   };
 }
 
-export function calculateLiquidCv({
-  flowRateGpm,
-  specificGravity,
-  pressureDropPsi,
-}) {
-  const q = Number(flowRateGpm);
-  const sg = Number(specificGravity);
-  const dp = Number(pressureDropPsi);
+/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  PROVISIONAL LIQUID Cv CALCULATION
 
-  if (!q || !sg || !dp || q <= 0 || sg <= 0 || dp <= 0) {
+  No iteration or correction pass here yet.
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+
+export function calculateLiquidCv({
+  massFlowKgH,
+  densityKgM3,
+  pressureDropBar,
+}) {
+  const m = readNumber(massFlowKgH);
+  const density = readNumber(densityKgM3);
+  const dp = readNumber(pressureDropBar);
+
+  if (
+    m === null ||
+    density === null ||
+    dp === null ||
+    m <= 0 ||
+    density <= 0 ||
+    dp <= 0
+  ) {
     return null;
   }
 
-  const cv = q * Math.sqrt(sg / dp);
+  const denominator = Math.sqrt(1000 * density * dp);
+
+  if (!Number.isFinite(denominator) || denominator <= 0) {
+    return null;
+  }
+
+  const provisionalCv = (1.156 * m) / denominator;
+
+  if (!Number.isFinite(provisionalCv) || provisionalCv <= 0) {
+    return null;
+  }
 
   return {
-    requiredCv: cv,
-    calculationBasis: "Preliminary liquid Cv calculation",
-    flowRegime: "Preliminary non-choked liquid",
+    provisionalCv,
+
+    // Use the provisional value until correction equations
+    // have been implemented.
+    requiredCv: provisionalCv,
+
+    calculationBasis:
+      "Provisional liquid Cv: 1.156 × m / √(1000 × density × dP)",
+
+    flowRegime:
+      "Preliminary liquid calculation — choking not evaluated",
+
     warnings: [
-      "Prototype only: correction factors, cavitation, flashing, viscosity, fittings, and choked-flow checks are not yet implemented.",
+      "Provisional Cv only: the correction pass is not yet implemented.",
+      "Cavitation, flashing, viscosity, fittings, and choked-flow checks are not yet implemented.",
     ],
   };
 }
 
-function convertFlowToGpm(flowRate, flowUnit) {
-  if (!Number.isFinite(flowRate)) {
+/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  HELPER: CONVERT FLOW TO kg/h
+
+  gpm is treated as US gallons per minute.
+  Volumetric flows use the process-case density.
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+
+function convertFlowToMassKgH(flowRate, flowUnit, densityKgM3) {
+  if (flowRate === null || !Number.isFinite(flowRate)) {
+    return null;
+  }
+
+  // Mass-flow inputs do not require density for conversion.
+  switch (flowUnit) {
+    case "kg/h":
+      return flowRate;
+
+    case "kg/s":
+      return flowRate * 3600;
+
+    case "t/h":
+      return flowRate * 1000;
+
+    case "lb/h":
+      return flowRate * KG_PER_LB;
+
+    default:
+      break;
+  }
+
+  if (
+    densityKgM3 === null ||
+    !Number.isFinite(densityKgM3) ||
+    densityKgM3 <= 0
+  ) {
     return null;
   }
 
   switch (flowUnit) {
     case "m3/h":
-      return flowRate * 4.402867;
+    case "m³/h":
+      return flowRate * densityKgM3;
+
     case "gpm":
-      return flowRate;
+      return flowRate * M3_PER_US_GALLON * 60 * densityKgM3;
+
+    case "L/h":
+    case "l/h":
+      return (flowRate / 1000) * densityKgM3;
+
+    case "L/min":
+    case "l/min":
+      return (flowRate * 60 / 1000) * densityKgM3;
+
     default:
-      return flowRate;
+      return null;
   }
 }
 
-function convertPressureDropToPsi(pressureDrop, pressureUnit) {
-  if (!Number.isFinite(pressureDrop)) {
+/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  HELPER: CONVERT PRESSURE DIFFERENCE TO bar
+
+  Inlet and outlet pressures must use the same
+  unit and reference basis.
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+
+function convertPressureDropToBar(pressureDrop, pressureUnit) {
+  if (pressureDrop === null || !Number.isFinite(pressureDrop)) {
     return null;
   }
 
   switch (pressureUnit) {
+    case "bar":
     case "barg":
     case "bara":
-    case "bar":
-      return pressureDrop * 14.5038;
+      return pressureDrop;
+
     case "psi":
     case "psig":
     case "psia":
-      return pressureDrop;
+      return pressureDrop / PSI_PER_BAR;
+
+    case "kPa":
+    case "kPag":
+    case "kPaa":
+      return pressureDrop / 100;
+
+    case "MPa":
+    case "MPag":
+    case "MPaa":
+      return pressureDrop * 10;
+
+    case "Pa":
+      return pressureDrop / 100000;
+
+    case "kg/cm2":
+    case "kg/cm²":
+    case "kgcm2g":
+    case "kgcm2a":
+      return pressureDrop * 0.980665;
+
     default:
-      return pressureDrop;
+      return null;
   }
 }
 
-function getSpecificGravity(processCase, inputs) {
+/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  HELPER: GET DENSITY IN kg/m³
+
+  Retains the application's existing convention:
+  density = specific gravity * 1000.
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+
+function getDensityKgM3(processCase, inputs) {
   if (inputs.densityMode === "sg") {
-    return Number(processCase.specificGravity);
+    const specificGravity = readNumber(processCase.specificGravity);
+
+    if (specificGravity === null || specificGravity <= 0) {
+      return null;
+    }
+
+    return specificGravity * 1000;
   }
 
-  const density = Number(processCase.density);
+  const density = readNumber(processCase.density);
 
-  if (!Number.isFinite(density)) {
+  if (density === null || density <= 0) {
     return null;
   }
 
   switch (inputs.densityUnit) {
     case "kg/m³":
-      return density / 1000;
+    case "kg/m3":
+      return density;
+
     case "lb/ft³":
-      return density / 62.4;
+    case "lb/ft3":
+      return density * KG_M3_PER_LB_FT3;
+
     default:
-      return density / 1000;
+      return null;
   }
 }
