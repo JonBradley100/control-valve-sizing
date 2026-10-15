@@ -1,3 +1,7 @@
+/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  RESULTS PANEL
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+
 .results-panel {
   display: flex;
   flex-direction: column;
@@ -6,7 +10,16 @@
   max-width: 100%;
 }
 
-.results-table-wrapper {
+.results-panel .panel-header h2 {
+  margin: 0;
+  padding-top: 10px;
+}
+
+/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  RESULTS TABLE
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+
+.results-panel .results-table-wrapper {
   padding: 0 1.5rem 1.5rem;
   width: 100%;
   max-width: 100%;
@@ -14,7 +27,7 @@
   overflow-x: hidden;
 }
 
-.results-table {
+.results-panel .results-table {
   display: block;
   width: 100%;
   max-width: 100%;
@@ -25,16 +38,26 @@
   color: white;
 }
 
-/* Each row */
-.results-row {
+/* Default three-column row */
+
+.results-panel .results-row {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.5rem;
   align-items: center;
 }
 
-/* Header row */
-.results-header {
+/* Add the information-button column */
+
+.results-panel .results-row.results-info-grid {
+  grid-template-columns: 2.25rem repeat(3, minmax(0, 1fr));
+}
+
+/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  TABLE HEADER
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+
+.results-panel .results-header {
   color: var(--muted-text);
   font-size: 0.6rem;
   font-weight: 700;
@@ -44,14 +67,19 @@
   background: rgba(15, 23, 42, 0.35);
 }
 
-.results-header > div {
+.results-panel .results-header > div {
   white-space: nowrap;
 }
-/* Cells */
-.result-cell {
+
+/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  TABLE CELLS
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+
+.results-panel .result-cell {
   display: flex;
   align-items: center;
   justify-content: center;
+  min-width: 0;
   padding: 10px 4px;
   box-sizing: border-box;
   font-size: 10px;
@@ -60,10 +88,11 @@
 }
 
 /* Content inside cells */
-.result-cell span,
-.result-cell div,
-.result-cell input,
-.result-cell select {
+
+.results-panel .result-cell span,
+.results-panel .result-cell div,
+.results-panel .result-cell input,
+.results-panel .result-cell select {
   display: block;
   width: 100%;
   font-size: 10px;
@@ -72,7 +101,153 @@
   box-sizing: border-box;
 }
 
-.results-panel .panel-header h2 {
+/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  INFORMATION BUTTON
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+
+.results-panel .case-info-button-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.results-panel .case-info-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 23px;
+  height: 23px;
+  padding: 0;
+  border: 1px solid #2563eb;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #ffffff;
+  font-family: Georgia, serif;
+  font-size: 15px;
+  font-style: italic;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.results-panel .case-info-button:hover {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+}
+
+.results-panel .case-info-button:focus-visible,
+.case-info-dialog .case-info-close:focus-visible {
+  outline: 3px solid #60a5fa;
+  outline-offset: 3px;
+}
+
+/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  INFORMATION DIALOG
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+
+.case-info-dialog {
+  box-sizing: border-box;
+  width: calc(100% - 2rem);
+  max-width: 360px;
+  max-height: calc(100dvh - 2rem);
+  margin: auto;
+  padding: 0;
+  overflow: auto;
+  border: 1px solid #93c5fd;
+  border-radius: 12px;
+  background: #eff6ff;
+  color: #172554;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.25);
+  font-family: inherit;
+}
+
+.case-info-dialog::backdrop {
+  background: rgba(15, 23, 42, 0.35);
+}
+
+/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  DIALOG HEADER
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+
+.case-info-dialog .case-info-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid #bfdbfe;
+  background: #dbeafe;
+}
+
+.case-info-dialog .case-info-title {
   margin: 0;
-  padding-top: 10px;
+  color: #1e40af;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.case-info-dialog .case-info-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #1e40af;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.case-info-dialog .case-info-close:hover {
+  background: #bfdbfe;
+}
+
+/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  DIALOG VALUES
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+
+.case-info-dialog .case-info-body {
+  padding: 6px 18px 18px;
+}
+
+.case-info-dialog .case-info-values {
+  margin: 0;
+}
+
+.case-info-dialog .case-info-detail-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid #dbeafe;
+}
+
+.case-info-dialog .case-info-detail-row dt {
+  font-weight: 500;
+}
+
+.case-info-dialog .case-info-detail-row dd {
+  min-width: 0;
+  margin: 0;
+  color: #1e3a8a;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  DIALOG NOTES
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+
+.case-info-dialog .case-info-note {
+  margin: 14px 0 0;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.5;
 }

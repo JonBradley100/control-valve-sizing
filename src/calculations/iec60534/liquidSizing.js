@@ -1,15 +1,27 @@
+import {
+  calculateLiquidTrimParameters,
+  calculateLiquidFLP,
+} from "./liquidCvParameters";
+
+// Preserve compatibility with any existing imports
+// of these functions from liquidSizing.js.
+export {
+  calculateLiquidTrimParameters,
+  calculateLiquidFLP,
+};
+
 /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   LIQUID SIZING
-
   Provisional equation:
   Cv = 1.156 * m / sqrt(1000 * density * dP)
-
   m       = mass flow in kg/h
   density = fluid density in kg/m³
   dP      = pressure difference in bar
-
-  Correction factors are not implemented yet.
-  requiredCv therefore equals provisionalCv.
+  Cv-based parameters are calculated in:
+  liquidCvParameters.js
+  FL, FLP, Fd and xT are calculated for
+  information only. They are not yet applied
+  as sizing corrections.
 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
 const KG_PER_LB = 0.45359237;
@@ -31,15 +43,39 @@ function readNumber(value) {
   }
 
   const number = Number(value);
-
   return Number.isFinite(number) ? number : null;
 }
 
 /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   MAIN LIQUID SIZING FUNCTION
+  Optional second argument:
+  {
+    ratedCv: selected valve's design Cv,
+    flCoefficients: matching CSV coefficient row,
+    lookupCode: optional parameter lookup code,
+    selectedValve: existing valve selection,
+    pipework: existing pipework selections
+  }
+  Required diameter selections:
+  selectedValve.size
+  pipework.inletPipeSize
+  pipework.outletPipeSize
+
+  All three size selections are in inches.
+  The existing flCoefficients argument name is
+  retained so existing callers remain compatible.
 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
-export function calculateLiquidSizing(inputs) {
+export function calculateLiquidSizing(
+  inputs,
+  {
+    ratedCv = null,
+    flCoefficients = null,
+    lookupCode = null,
+    selectedValve = null,
+    pipework = null,
+  } = {}
+) {
   const processCaseResults = inputs.processCases.map((processCase) => {
     const flowRate = readNumber(processCase.flowRate);
     const pressureIn = readNumber(processCase.pressureIn);
@@ -83,6 +119,19 @@ export function calculateLiquidSizing(inputs) {
       massFlowKgH,
       densityKgM3,
       pressureDropBar,
+    });
+
+    const trimResult = calculateLiquidTrimParameters({
+      provisionalCv: liquidCvResult?.provisionalCv ?? null,
+      ratedCv,
+      flCoefficients,
+    });
+
+    const flpResult = calculateLiquidFLP({
+      FL: trimResult.FL,
+      r: trimResult.cvRatio,
+      selectedValve,
+      pipework,
     });
 
     const inputWarnings = [];
@@ -139,11 +188,28 @@ export function calculateLiquidSizing(inputs) {
       calculationBasis: liquidCvResult?.calculationBasis ?? null,
       flowRegime: liquidCvResult?.flowRegime ?? null,
 
+      // Zeta values remain internal.
+      // Stroke is separate and is not calculated here.
+      technicalDetails: {
+        lookupCode,
+        ratedCv: trimResult.ratedCv,
+        cvRatio: trimResult.cvRatio,
+        cvRatioPercent: trimResult.cvRatioPercent,
+        FL: trimResult.FL,
+        FLP: flpResult.FLP,
+        Fd: trimResult.Fd,
+        xT: trimResult.xT,
+      },
+
       warnings: [
         ...inputWarnings,
         ...(liquidCvResult?.warnings ?? []),
+        ...(liquidCvResult ? trimResult.warnings : []),
+        ...(liquidCvResult ? flpResult.warnings : []),
       ],
 
+      // Missing trim or diameter data does not prevent
+      // provisional Cv calculation.
       canCalculate: Boolean(liquidCvResult),
     };
   });
@@ -155,7 +221,6 @@ export function calculateLiquidSizing(inputs) {
 
 /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   PROVISIONAL LIQUID Cv CALCULATION
-
   No iteration or correction pass here yet.
 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
@@ -193,7 +258,6 @@ export function calculateLiquidCv({
 
   return {
     provisionalCv,
-
     // Use the provisional value until correction equations
     // have been implemented.
     requiredCv: provisionalCv,
@@ -210,11 +274,9 @@ export function calculateLiquidCv({
     ],
   };
 }
-
 /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   HELPER: CONVERT FLOW TO kg/h
-
-  gpm is treated as US gallons per minute.
+   gpm is treated as US gallons per minute.
   Volumetric flows use the process-case density.
 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
@@ -222,7 +284,6 @@ function convertFlowToMassKgH(flowRate, flowUnit, densityKgM3) {
   if (flowRate === null || !Number.isFinite(flowRate)) {
     return null;
   }
-
   // Mass-flow inputs do not require density for conversion.
   switch (flowUnit) {
     case "kg/h":
@@ -263,16 +324,14 @@ function convertFlowToMassKgH(flowRate, flowUnit, densityKgM3) {
 
     case "L/min":
     case "l/min":
-      return (flowRate * 60 / 1000) * densityKgM3;
+      return ((flowRate * 60) / 1000) * densityKgM3;
 
     default:
       return null;
   }
 }
-
 /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   HELPER: CONVERT PRESSURE DIFFERENCE TO bar
-
   Inlet and outlet pressures must use the same
   unit and reference basis.
 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
@@ -316,10 +375,8 @@ function convertPressureDropToBar(pressureDrop, pressureUnit) {
       return null;
   }
 }
-
 /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   HELPER: GET DENSITY IN kg/m³
-
   Retains the application's existing convention:
   density = specific gravity * 1000.
 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/

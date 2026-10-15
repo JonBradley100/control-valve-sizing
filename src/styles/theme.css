@@ -1,47 +1,53 @@
-.app-shell {
-  width: 100%;
-  min-width: 100%;
-  min-height: 100vh;
-  box-sizing: border-box;
+/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  TRIM SELECTION — DARK THEME TEXT
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
-  transition:
-    background-color 0.25s ease,
-    border-color 0.25s ease,
-    color 0.25s ease;
+.app-shell .trim-selection-panel {
+  color: var(--text-primary);
 }
 
-.mode-liquid {
-  background:
-    radial-gradient(circle at top left, rgba(14, 165, 233, 0.16), transparent 28rem),
-    linear-gradient(135deg, #f8fafc 0%, #eef6ff 100%);
+.app-shell .trim-selection-panel :is(
+  h2,
+  h3,
+  h4,
+  p,
+  span,
+  strong,
+  dt,
+  dd
+) {
+  color: var(--text-primary);
 }
 
-.mode-liquid .fluid-toggle button.active {
-  background: linear-gradient(135deg, #0284c7, #38bdf8);
+.app-shell .trim-selection-panel label {
+  color: var(--text-secondary);
 }
 
-.mode-liquid .panel {
-  border-color: rgba(14, 165, 233, 0.22);
+.app-shell .trim-selection-panel :is(
+  input,
+  select,
+  textarea
+) {
+  background: var(--input-background);
+  color: var(--text-primary);
+  border-color: var(--border-color);
 }
 
-.mode-liquid .result-card {
-  border-color: rgba(14, 165, 233, 0.2);
+.app-shell .trim-selection-panel select option {
+  background: var(--input-background);
+  color: var(--text-primary);
 }
 
-.mode-gas {
-  background:
-    radial-gradient(circle at top left, rgba(245, 158, 11, 0.16), transparent 28rem),
-    linear-gradient(135deg, #fff7ed 0%, #f8fafc 100%);
+.app-shell .trim-selection-panel input::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
 }
 
-.mode-gas .fluid-toggle button.active {
-  background: linear-gradient(135deg, #d97706, #fbbf24);
-}
-
-.mode-gas .panel {
-  border-color: rgba(245, 158, 11, 0.24);
-}
-
-.mode-gas .result-card {
-  border-color: rgba(245, 158, 11, 0.22);
+.app-shell .trim-selection-panel :is(
+  small,
+  .unit,
+  .units,
+  .helper-text
+) {
+  color: var(--text-secondary);
 }

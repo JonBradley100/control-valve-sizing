@@ -26,6 +26,117 @@ function readNumber(value) {
 }
 
 /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  HELPER: PARSE Cv PARAMETER CSV
+
+  Supports the supplied CSV format:
+  unquoted headers, codes, and numeric values.
+
+  Numeric conversion of FL coefficients is
+  handled by liquidSizing.js.
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+
+function parseCvBasedParameters(csvText) {
+  const lines = String(csvText)
+    .replace(/^\uFEFF/, "")
+    .split(/\r\n|\n|\r/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length < 2) {
+    throw new Error("CvBasedParameters.csv contains no parameter rows.");
+  }
+
+  const headers = lines[0].split(",").map((header) => header.trim());
+
+  const requiredHeaders = [
+    "code",
+    "FL0",
+    "FL1",
+    "FL2",
+    "FL3",
+    "FL4",
+    "FL5",
+  ];
+
+  const missingHeaders = requiredHeaders.filter(
+    (header) => !headers.includes(header)
+  );
+
+  if (missingHeaders.length > 0) {
+    throw new Error(
+      `CvBasedParameters.csv is missing columns: ${missingHeaders.join(", ")}.`
+    );
+  }
+
+  const seenCodes = new Set();
+
+  return lines.slice(1).map((line, index) => {
+    const values = line.split(",").map((value) => value.trim());
+
+    if (values.length !== headers.length) {
+      throw new Error(
+        `CvBasedParameters.csv row ${index + 2} has ${values.length} values; expected ${headers.length}.`
+      );
+    }
+
+    const row = Object.fromEntries(
+      headers.map((header, columnIndex) => [
+        header,
+        values[columnIndex],
+      ])
+    );
+
+    row.code = row.code.trim().toUpperCase();
+
+    if (!row.code) {
+      throw new Error(
+        `CvBasedParameters.csv row ${index + 2} has an empty code.`
+      );
+    }
+
+    if (seenCodes.has(row.code)) {
+      throw new Error(
+        `CvBasedParameters.csv contains duplicate code "${row.code}".`
+      );
+    }
+
+    seenCodes.add(row.code);
+
+    return row;
+  });
+}
+
+/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  HELPER: GET PARAMETER LOOKUP CODE
+
+  Example:
+  CU-06-015-1001-H-L -> 1HL
+
+  From the last three elements:
+  - First character of stage code
+  - Trim type
+  - Style
+XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+
+function getCvParameterCode(valveCode) {
+  const parts = String(valveCode ?? "").trim().split("-");
+
+  if (parts.length < 3) {
+    return "";
+  }
+
+  const [stageCode, trimType, style] = parts
+    .slice(-3)
+    .map((part) => part.trim());
+
+  if (!stageCode || !trimType || !style) {
+    return "";
+  }
+
+  return `${stageCode.charAt(0)}${trimType}${style}`.toUpperCase();
+}
+
+/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   HELPER: CONVERT TEMPERATURE TO KELVIN
 
   Supports both:
@@ -109,7 +220,7 @@ function convertAbsolutePressure(value, fromUnit, toUnit) {
 /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   HELPER: CALCULATE VAPOUR PRESSURE
 
-  Uses the user-specified formula:
+  Retains your existing formula:
   EXP(A - B / (temperatureK + C)) / 760
 
   The result is treated as bara.
@@ -185,13 +296,13 @@ function createDefaultProcessCase(id = 1) {
 
 function App() {
   /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  1.        FLUID TYPE STATE
+    1. FLUID TYPE STATE
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   const [fluidType, setFluidType] = useState("liquid");
 
   /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  2.        MAIN INPUT STATE
+    2. MAIN INPUT STATE
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   const [inputs, setInputs] = useState({
@@ -217,7 +328,7 @@ function App() {
   };
 
   /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  3.        SELECTED VALVE STATE
+    3. SELECTED VALVE STATE
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   const [selectedValve, setSelectedValve] = useState({
@@ -230,7 +341,7 @@ function App() {
   });
 
   /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  4.        PIPEWORK STATE
+    4. PIPEWORK STATE
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   const [pipework, setPipework] = useState({
@@ -241,55 +352,23 @@ function App() {
   });
 
   /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  5.        PIPEWORK OPTIONS
+    5. PIPEWORK OPTIONS
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   const pipeSizeOptions = [
-    "2",
-    "3",
-    "4",
-    "6",
-    "8",
-    "10",
-    "12",
-    "14",
-    "16",
-    "18",
-    "20",
-    "22",
-    "24",
-    "26",
-    "28",
-    "30",
-    "32",
-    "34",
-    "36",
-    "38",
-    "40",
-    "42",
-    "44",
-    "46",
-    "48",
+    "2", "3", "4", "6", "8", "10", "12", "14",
+    "16", "18", "20", "22", "24", "26", "28",
+    "30", "32", "34", "36", "38", "40", "42",
+    "44", "46", "48",
   ];
 
   const scheduleOptions = [
-    "5",
-    "10",
-    "20",
-    "40",
-    "80",
-    "160",
-    "STD",
-    "XS",
-    "XXS",
-    "5S",
-    "10S",
-    "20S",
-    "40S",
+    "5", "10", "20", "40", "80", "160",
+    "STD", "XS", "XXS", "5S", "10S", "20S", "40S",
   ];
 
   /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  6.        DATABASE STATE
+    6. DATABASE STATE
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   const [trimDatabase, setTrimDatabase] = useState([]);
@@ -299,13 +378,19 @@ function App() {
   const [fluidDatabaseError, setFluidDatabaseError] = useState(null);
   const [selectedFluidName, setSelectedFluidName] = useState("");
 
+  const [cvParameterDatabase, setCvParameterDatabase] = useState([]);
+  const [cvParameterDatabaseError, setCvParameterDatabaseError] =
+    useState(null);
+  const [cvParameterDatabaseLoaded, setCvParameterDatabaseLoaded] =
+    useState(false);
+
   const filteredFluidDatabase = useMemo(
     () => fluidDatabase.filter((fluid) => fluid.phase === fluidType),
     [fluidDatabase, fluidType]
   );
 
   /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  7.        LOAD TRIM DATABASE
+    7. LOAD TRIM DATABASE
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   useEffect(() => {
@@ -322,7 +407,7 @@ function App() {
   }, []);
 
   /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  8.        LOAD FLUID DATABASE
+    8. LOAD FLUID DATABASE
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   useEffect(() => {
@@ -339,7 +424,62 @@ function App() {
   }, []);
 
   /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  9.        SET DEFAULT FLUID
+    8a. LOAD Cv PARAMETER DATABASE
+
+    File:
+    public/data/CvBasedParameters.csv
+
+    Browser request:
+    /data/CvBasedParameters.csv
+  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadCvParameterDatabase() {
+      try {
+        const response = await fetch("/data/CvBasedParameters.csv", {
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error(
+            `Could not load /data/CvBasedParameters.csv: HTTP ${response.status}.`
+          );
+        }
+
+        const csvText = await response.text();
+        const rows = parseCvBasedParameters(csvText);
+
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        setCvParameterDatabase(rows);
+        setCvParameterDatabaseError(null);
+        setCvParameterDatabaseLoaded(true);
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        console.error(error);
+
+        setCvParameterDatabase([]);
+        setCvParameterDatabaseError(
+          error instanceof Error ? error.message : String(error)
+        );
+        setCvParameterDatabaseLoaded(false);
+      }
+    }
+
+    loadCvParameterDatabase();
+
+    return () => controller.abort();
+  }, []);
+
+  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    9. SET DEFAULT FLUID
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   useEffect(() => {
@@ -351,7 +491,7 @@ function App() {
   }, [filteredFluidDatabase, selectedFluidName]);
 
   /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  10.        SELECTED FLUID LOOKUP
+    10. SELECTED FLUID LOOKUP
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   const selectedFluid = useMemo(() => {
@@ -363,13 +503,7 @@ function App() {
   }, [filteredFluidDatabase, selectedFluidName]);
 
   /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  11.        SYNC SELECTED FLUID TO INPUTS
-
-  Updates:
-  - Fluid name
-  - Density
-  - Specific gravity
-  - Vapour pressure for each process case
+    11. SYNC SELECTED FLUID TO INPUTS
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   useEffect(() => {
@@ -403,7 +537,7 @@ function App() {
   }, [selectedFluid, fluidType]);
 
   /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  12.        SELECTED VALVE CODE
+    12. SELECTED VALVE CODE
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   const selectedValveCode = useMemo(() => {
@@ -420,7 +554,7 @@ function App() {
   }, [selectedValve]);
 
   /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  13.        SELECTED TRIM LOOKUP
+    13. SELECTED TRIM LOOKUP
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   const selectedTrim = useMemo(() => {
@@ -434,12 +568,62 @@ function App() {
   const selectedTrimDesignCv = selectedTrim?.designCvNumeric ?? null;
 
   /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  14.        CALCULATION RESULT
+    13a. PARAMETER LOOKUP CODE
+
+    CU-06-015-1001-H-L -> 1HL
+  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+
+  const selectedParameterCode = useMemo(
+    () => getCvParameterCode(selectedValveCode),
+    [selectedValveCode]
+  );
+
+  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    13b. MATCHING FL COEFFICIENT ROW
+  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+
+  const selectedParameterRow = useMemo(() => {
+    if (!selectedParameterCode) {
+      return null;
+    }
+
+    return (
+      cvParameterDatabase.find(
+        (row) => row.code === selectedParameterCode
+      ) || null
+    );
+  }, [cvParameterDatabase, selectedParameterCode]);
+
+  const parameterLookupError =
+    fluidType === "liquid" &&
+    selectedTrim &&
+    cvParameterDatabaseLoaded &&
+    !selectedParameterRow
+      ? `No CvBasedParameters row matches "${selectedParameterCode}" for valve "${selectedValveCode}".`
+      : null;
+
+  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    14. CALCULATION RESULT
+
+    Pass selected design Cv, matching
+    coefficients, valve selection and
+    pipework selections into liquidSizing.js.
+
+    Valve and pipe sizes remain in inches.
+    Conversion for FLP occurs in liquidSizing.js.
+
+    Recalculate whenever these change.
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   const result = useMemo(() => {
     if (fluidType === "liquid") {
-      return calculateLiquidSizing(inputs);
+      return calculateLiquidSizing(inputs, {
+        ratedCv: selectedTrimDesignCv,
+        flCoefficients: selectedParameterRow,
+        lookupCode: selectedParameterCode || null,
+        selectedValve,
+        pipework,
+      });
     }
 
     return {
@@ -447,10 +631,18 @@ function App() {
       status: "Gas sizing module not yet implemented",
       warnings: ["Gas sizing will be added in the next calculation module."],
     };
-  }, [fluidType, inputs]);
+  }, [
+    fluidType,
+    inputs,
+    selectedTrimDesignCv,
+    selectedParameterRow,
+    selectedParameterCode,
+    selectedValve,
+    pipework,
+  ]);
 
   /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  15.        UPDATE FUNCTIONS
+    15. UPDATE FUNCTIONS
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   function updateInput(field, value) {
@@ -482,8 +674,7 @@ function App() {
               : "";
         }
 
-        // Convert the existing value when the pressure unit changes.
-        // This preserves any manually entered vapour pressure.
+        // Preserve manually entered vapour pressure during unit changes.
         if (field === "vapourPressureUnit") {
           updatedCase.vapourPressure = convertAbsolutePressure(
             processCase.vapourPressure,
@@ -512,13 +703,13 @@ function App() {
   }
 
   /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  16.        APP MODE CLASS
+    16. APP MODE CLASS
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   const appModeClass = fluidType === "liquid" ? "mode-liquid" : "mode-gas";
 
   /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  17.        ADD PROCESS CASE
+    17. ADD PROCESS CASE
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   function addProcessCase() {
@@ -541,8 +732,7 @@ function App() {
         vapourPressureUnit: lastCase?.vapourPressureUnit ?? "bara",
       };
 
-      // Apply the selected fluid's density if all previous cases
-      // have been deleted and this is a fresh default case.
+      // Apply selected fluid density when adding a fresh default case.
       if (!lastCase && selectedFluid) {
         const selectedDensity = readNumber(selectedFluid.rho);
 
@@ -565,7 +755,7 @@ function App() {
   }
 
   /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  18.        COMPONENT RENDER
+    18. COMPONENT RENDER
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   return (
@@ -631,9 +821,7 @@ function App() {
             </div>
           </div>
 
-          {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-          18a.        LIQUID / GAS TOGGLE ROW
-          XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
+          {/* LIQUID / GAS TOGGLE */}
 
           <div className="fluid-toggle-row">
             <div className="fluid-toggle" aria-label="Fluid sizing type">
@@ -661,14 +849,10 @@ function App() {
             </div>
           </div>
 
-          {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-          18b.        PIPEWORK MAIN ROW
-          XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
+          {/* PIPEWORK MAIN ROW */}
 
           <div className="pipework-main-row">
-            {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-            18c.        FLUID SELECTOR COLUMN
-            XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
+            {/* FLUID SELECTOR */}
 
             <div className="pipework-column fluid-column">
               <div className="fluid-selector-row">
@@ -680,9 +864,9 @@ function App() {
                   id="fluid-select"
                   className="fluid-select main-fluid-select"
                   value={selectedFluidName}
-                  onChange={(event) => {
-                    setSelectedFluidName(event.target.value);
-                  }}
+                  onChange={(event) =>
+                    setSelectedFluidName(event.target.value)
+                  }
                 >
                   {filteredFluidDatabase.length === 0 ? (
                     <option value="">No fluids loaded</option>
@@ -697,9 +881,7 @@ function App() {
               </div>
             </div>
 
-            {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-            18d.        INLET PIPEWORK COLUMN
-            XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
+            {/* INLET PIPEWORK */}
 
             <div className="pipework-column">
               <div className="fluid-selector-row">
@@ -751,9 +933,7 @@ function App() {
               </div>
             </div>
 
-            {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-            18e.        OUTLET PIPEWORK COLUMN
-            XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
+            {/* OUTLET PIPEWORK */}
 
             <div className="pipework-column">
               <div className="fluid-selector-row">
@@ -806,9 +986,7 @@ function App() {
             </div>
           </div>
 
-          {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-          18f.        DATABASE ERROR MESSAGES
-          XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
+          {/* DATABASE ERROR MESSAGES */}
 
           {trimDatabaseError && (
             <div className="database-error">
@@ -821,12 +999,22 @@ function App() {
               Fluid database error: {fluidDatabaseError}
             </div>
           )}
+
+          {cvParameterDatabaseError && (
+            <div className="database-error">
+              Cv parameter database error: {cvParameterDatabaseError}
+            </div>
+          )}
+
+          {parameterLookupError && (
+            <div className="database-error">
+              {parameterLookupError}
+            </div>
+          )}
         </div>
       </section>
 
-      {/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-      18g.        MAIN CONTENT GRID
-      XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/}
+      {/* MAIN CONTENT GRID */}
 
       <section className="content-grid">
         <TrimSelectionPanel
@@ -849,7 +1037,11 @@ function App() {
           </div>
 
           <div className="sizing-results-area">
-            <ResultPanel inputs={inputs} result={result} />
+            <ResultPanel
+              inputs={inputs}
+              result={result}
+              ratedCv={selectedTrimDesignCv}
+            />
           </div>
         </div>
       </section>
