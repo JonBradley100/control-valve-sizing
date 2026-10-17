@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import "./InformationPanel.css";
 
 function formatValue(value, decimalPlaces = 3) {
@@ -53,7 +53,11 @@ function InformationPanel({
   onClose = () => {},
 }) {
   const dialogRef = useRef(null);
+  const dragRef = useRef(null);
   const dialogTitleId = useId();
+
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
 
   const details = caseResult?.technicalDetails ?? {};
 
@@ -71,6 +75,8 @@ function InformationPanel({
     }
 
     if (caseResult && !dialog.open) {
+      // Start each newly opened panel in the centre.
+      setPosition({ x: 0, y: 0 });
       dialog.showModal();
     } else if (!caseResult && dialog.open) {
       dialog.close();
@@ -88,12 +94,97 @@ function InformationPanel({
     }
   }
 
+  function startDragging(event) {
+    // Only drag with the primary pointer button.
+    // Keep the close button independent of dragging.
+    if (
+      event.button !== 0 ||
+      !event.isPrimary ||
+      event.target.closest("button") ||
+      !dialogRef.current
+    ) {
+      return;
+    }
+
+    const rect = dialogRef.current.getBoundingClientRect();
+
+    dragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      initialX: position.x,
+      initialY: position.y,
+      rect,
+    };
+
+    event.currentTarget.setPointerCapture(event.pointerId);
+    event.preventDefault();
+
+    setIsDragging(true);
+  }
+
+  function movePanel(event) {
+    const drag = dragRef.current;
+
+    if (!drag || event.pointerId !== drag.pointerId) {
+      return;
+    }
+
+    const requestedX = event.clientX - drag.startX;
+    const requestedY = event.clientY - drag.startY;
+
+    // Keep the panel inside the viewport.
+    const movementX = Math.max(
+      -drag.rect.left,
+      Math.min(
+        requestedX,
+        window.innerWidth - drag.rect.right
+      )
+    );
+
+    const movementY = Math.max(
+      -drag.rect.top,
+      Math.min(
+        requestedY,
+        window.innerHeight - drag.rect.bottom
+      )
+    );
+
+    setPosition({
+      x: drag.initialX + movementX,
+      y: drag.initialY + movementY,
+    });
+  }
+
+  function stopDragging(event) {
+    if (
+      !dragRef.current ||
+      event.pointerId !== dragRef.current.pointerId
+    ) {
+      return;
+    }
+
+    dragRef.current = null;
+    setIsDragging(false);
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }
+
   return (
     <dialog
       ref={dialogRef}
       className="information-panel"
       aria-labelledby={dialogTitleId}
-      onClose={onClose}
+      style={{
+        transform: `translate(${position.x}px, ${position.y}px)`,
+      }}
+      onClose={() => {
+        dragRef.current = null;
+        setIsDragging(false);
+        onClose();
+      }}
       onClick={(event) => {
         if (event.target === event.currentTarget) {
           closeInformation();
@@ -101,7 +192,19 @@ function InformationPanel({
       }}
     >
       <div className="information-panel__content">
-        <div className="information-panel__header">
+        <div
+          className="information-panel__header"
+          style={{
+            cursor: isDragging ? "grabbing" : "grab",
+            touchAction: "none",
+            userSelect: "none",
+          }}
+          onPointerDown={startDragging}
+          onPointerMove={movePanel}
+          onPointerUp={stopDragging}
+          onPointerCancel={stopDragging}
+          onLostPointerCapture={stopDragging}
+        >
           <h3
             id={dialogTitleId}
             className="information-panel__title"
