@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import "./InformationPanel.css";
 
-function formatValue(value, decimalPlaces = 3) {
+function formatValue(value, decimalPlaces = 4) {
   if (
     value === null ||
     value === undefined ||
@@ -250,6 +250,13 @@ function InformationPanel({
 
             <div className="information-panel__detail-row">
               <dt>
+                F<sub>P</sub>
+              </dt>
+              <dd>{formatValue(details.FP)}</dd>
+            </div>
+
+            <div className="information-panel__detail-row">
+              <dt>
                 F<sub>d</sub>
               </dt>
               <dd>{formatValue(details.Fd)}</dd>
@@ -260,6 +267,13 @@ function InformationPanel({
                 x<sub>T</sub>
               </dt>
               <dd>{formatValue(details.xT)}</dd>
+            </div>
+
+            <div className="information-panel__detail-row">
+              <dt>
+                x<sub>TP</sub>
+              </dt>
+              <dd>{formatValue(details.xTP)}</dd>
             </div>
           </dl>
 

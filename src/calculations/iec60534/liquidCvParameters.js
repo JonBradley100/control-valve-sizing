@@ -24,6 +24,7 @@
   D1 = pipework.inletPipeSize
   D2 = pipework.outletPipeSize
 
+  Zeta calculations:
   zeta1  = 0.5 * (1 - (d / D1)^2)^2
   zeta2  = (1 - (d / D2)^2)^2
   zetaB1 = 1 - (d / D1)^4
@@ -31,19 +32,35 @@
 
   sumZeta = zeta1 + zeta2 + zetaB1 - zetaB2
 
-  User-specified FLP equation:
+  Existing FLP coefficient retained:
+  flpFittingsCoefficient = zeta1 + zeta2
+
+  Actual Cv:
+  actualCv = r * ratedCv
+
+  Diameter used below:
+  diameterMm = d * 25.4
+
+  FP = (
+    1
+    + (sumZeta / 0.00214)
+      * (actualCv / diameterMm²)²
+  )^-0.5
+
   FLP = FL / sqrt(
     1
     + (FL² / 0.00214)
-      * sumZeta
-      * (r / (d * 25.4)²)²
+      * flpFittingsCoefficient
+      * (actualCv / diameterMm²)²
   )
 
-  Equations and validation are retained from
-  the original liquidSizing.js.
+  xTP = (xT / FP²) / (
+    1
+    + (xT * (zeta1 + zetaB1) / 0.00241)
+      * (actualCv / diameterMm²)²
+  )
 
-  Zeta values are internal calculations and
-  are not exposed in technicalDetails.
+  Zeta values remain internal.
 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
 /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
@@ -67,21 +84,12 @@ function readNumber(value) {
 /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   CALCULATE Cv RATIO, FL, Fd AND xT
 
-  All calculations use the fractional Cv ratio:
-  0.5 for 50%, not 50.
+  Polynomial calculations use the fractional
+  Cv ratio: 0.5 for 50%, not 50.
 
   No clamping is applied to the ratio.
-  The fits' valid operating ranges must be
-  checked against the coefficient data.
 
-  FL, Fd and xT are calculated independently:
-  missing coefficients for one do not prevent
-  calculation of the others.
-
-  flCoefficients contains:
-  FL0, FL1, FL2, FL3, FL4, FL5,
-  Fd_a, Fd_b,
-  xT0, xT1, xT2, xT3, xT4, xT5
+  FL, Fd and xT are calculated independently.
 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
 export function calculateLiquidTrimParameters({
@@ -139,8 +147,6 @@ export function calculateLiquidTrimParameters({
 
   /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
     Fd CALCULATION
-
-    Fd = Fd_a * r^Fd_b
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   const fdCoefficientNames = ["Fd_a", "Fd_b"];
@@ -174,9 +180,6 @@ export function calculateLiquidTrimParameters({
 
   /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
     xT CALCULATION
-
-    Uses xT0 through xT5 from the CSV row,
-    not the separate fixed xT column.
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   const xtCoefficientNames = [
@@ -205,10 +208,10 @@ export function calculateLiquidTrimParameters({
   } else {
     const [xT0, xT1, xT2, xT3, xT4, xT5] = xtCoefficients;
 
-    // Horner's method:
-    // xT0 + xT1*r + xT2*r² + xT3*r³ + xT4*r⁴ + xT5*r⁵
     const xT =
-      ((((xT5 * cvRatio + xT4) * cvRatio + xT3) * cvRatio + xT2) *
+      ((((xT5 * cvRatio + xT4) * cvRatio + xT3) *
+        cvRatio +
+        xT2) *
         cvRatio +
         xT1) *
         cvRatio +
@@ -225,8 +228,6 @@ export function calculateLiquidTrimParameters({
 
   /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
     FL CALCULATION
-
-    Uses FL0 through FL5 from the CSV row.
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   const coefficientNames = [
@@ -257,10 +258,11 @@ export function calculateLiquidTrimParameters({
   }
 
   const [FL0, FL1, FL2, FL3, FL4, FL5] = coefficients;
-  // Horner's method:
-  // FL0 + FL1*r + FL2*r² + FL3*r³ + FL4*r⁴ + FL5*r⁵
+
   const FL =
-    ((((FL5 * cvRatio + FL4) * cvRatio + FL3) * cvRatio + FL2) *
+    ((((FL5 * cvRatio + FL4) * cvRatio + FL3) *
+      cvRatio +
+      FL2) *
       cvRatio +
       FL1) *
       cvRatio +
@@ -280,42 +282,64 @@ export function calculateLiquidTrimParameters({
 }
 
 /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  CALCULATE FLP
+  CALCULATE FP, FLP AND xTP
 
-  Implements the user-specified equation.
-  r is the fractional Cv ratio already used
-  by the trim parameter calculations.
-  The inch-to-mm conversion cancels within
-  the diameter ratios used for zeta values.
-  In the FLP equation, the valve diameter is
-  converted directly from inches to mm.
-  Pipe schedule is not used by this direct
-  conversion approach.
+  Existing function name retained so the
+  liquidSizing.js import does not change.
+
+  xT is an additional optional input.
+  Existing callers remain compatible, but
+  must supply xT to calculate xTP.
+
+  FP does not require FL or xT.
+
+  xTP is calculated before FL validation,
+  so missing FL does not prevent xTP.
+
+  Diameter inputs are treated as inches and
+  converted directly to mm, as before.
+  Pipe schedule is not used.
 XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
 export function calculateLiquidFLP({
   FL,
+  xT = null,
   r,
+  ratedCv,
   selectedValve = null,
   pipework = null,
 } = {}) {
   const result = {
+    FP: null,
     FLP: null,
+    xTP: null,
     warnings: [],
   };
 
-  const fl = readNumber(FL);
   const ratio = readNumber(r);
+  const designCv = readNumber(ratedCv);
 
-  // Missing trim data is already reported by the
-  // trim parameter calculation.
-  if (fl === null || ratio === null) {
+  if (ratio === null || ratio <= 0) {
+    result.warnings.push(
+      "FP, FLP and xTP were not calculated: a positive Cv ratio is required."
+    );
+
     return result;
   }
 
-  if (fl <= 0 || ratio <= 0) {
+  if (designCv === null || designCv <= 0) {
     result.warnings.push(
-      "FLP was not calculated: FL and the Cv ratio must be positive."
+      "FP, FLP and xTP were not calculated: a positive selected-valve design Cv is required."
+    );
+
+    return result;
+  }
+
+  const actualCv = ratio * designCv;
+
+  if (!Number.isFinite(actualCv) || actualCv <= 0) {
+    result.warnings.push(
+      "FP, FLP and xTP were not calculated: the reconstructed Cv must be finite and positive."
     );
 
     return result;
@@ -334,37 +358,171 @@ export function calculateLiquidFLP({
     outletPipeSize <= 0
   ) {
     result.warnings.push(
-      "FLP was not calculated: positive valve, inlet pipe and outlet pipe sizes in inches are required."
+      "FP, FLP and xTP were not calculated: positive valve, inlet pipe and outlet pipe sizes in inches are required."
     );
 
     return result;
   }
 
+  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    ZETA CALCULATIONS
+  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+
+  const inletDiameterRatio = valveSize / inletPipeSize;
+  const outletDiameterRatio = valveSize / outletPipeSize;
+
   const zeta1 =
-    0.5 * (1 - (valveSize / inletPipeSize) ** 2) ** 2;
+    0.5 * (1 - inletDiameterRatio ** 2) ** 2;
+
   const zeta2 =
-    (1 - (valveSize / outletPipeSize) ** 2) ** 2;
+    (1 - outletDiameterRatio ** 2) ** 2;
+
   const zetaB1 =
-    1 - (valveSize / inletPipeSize) ** 4;
+    1 - inletDiameterRatio ** 4;
+
   const zetaB2 =
-    1 - (valveSize / outletPipeSize) ** 4;
-  const sumZeta = zeta1 + zeta2 + zetaB1 - zetaB2;
-  const squareRootTerm =
+    1 - outletDiameterRatio ** 4;
+
+  // Full sum used for FP.
+  const sumZeta =
+    zeta1 + zeta2 + zetaB1 - zetaB2;
+
+  // Existing FLP coefficient retained separately.
+  const flpFittingsCoefficient =
+    zeta1 + zeta2;
+
+  // Inlet coefficient used for xTP.
+  const xtpFittingsCoefficient =
+    zeta1 + zetaB1;
+
+  const valveDiameterMm = valveSize * 25.4;
+
+  const cvDiameterTerm =
+    (actualCv / valveDiameterMm ** 2) ** 2;
+
+  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    FP CALCULATION
+
+    FP = (
+      1 + (sumZeta / 0.00214) * cvDiameterTerm
+    )^-0.5
+  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+
+  const fpRootTerm =
+    1 + (sumZeta / 0.00214) * cvDiameterTerm;
+
+  if (
+    !Number.isFinite(fpRootTerm) ||
+    fpRootTerm <= 0
+  ) {
+    result.warnings.push(
+      "FP was not calculated: the square-root term must be finite and positive."
+    );
+  } else {
+    const FP = Math.pow(fpRootTerm, -0.5);
+
+    if (Number.isFinite(FP) && FP > 0) {
+      result.FP = FP;
+    } else {
+      result.warnings.push(
+        "The FP calculation did not produce a finite positive result."
+      );
+    }
+  }
+
+  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    xTP CALCULATION
+
+    xTP = (xT / FP²) / (
+      1
+      + (xT * (zeta1 + zetaB1) / 0.00241)
+        * cvDiameterTerm
+    )
+
+    Calculated independently of FL and FLP.
+  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+
+  const xt = readNumber(xT);
+
+  // Missing xT is already reported by the
+  // trim parameter calculation when applicable.
+  if (xt !== null) {
+    if (xt <= 0) {
+      result.warnings.push(
+        "xTP was not calculated: xT must be positive."
+      );
+    } else if (result.FP === null) {
+      result.warnings.push(
+        "xTP was not calculated: a finite positive FP is required."
+      );
+    } else {
+      const xtpCorrectionTerm =
+        1 +
+        ((xt * xtpFittingsCoefficient) / 0.00241) *
+          cvDiameterTerm;
+
+      if (
+        !Number.isFinite(xtpCorrectionTerm) ||
+        xtpCorrectionTerm <= 0
+      ) {
+        result.warnings.push(
+          "xTP was not calculated: the correction term must be finite and positive."
+        );
+      } else {
+        const xTP =
+          (xt / result.FP ** 2) / xtpCorrectionTerm;
+
+        if (Number.isFinite(xTP) && xTP > 0) {
+          result.xTP = xTP;
+        } else {
+          result.warnings.push(
+            "The xTP calculation did not produce a finite positive result."
+          );
+        }
+      }
+    }
+  }
+
+  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    FLP CALCULATION
+
+    Existing fittings expression retained.
+  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+
+  const fl = readNumber(FL);
+
+  // Missing FL is already reported by the
+  // trim parameter calculation.
+  if (fl === null) {
+    return result;
+  }
+
+  if (fl <= 0) {
+    result.warnings.push(
+      "FLP was not calculated: FL must be positive."
+    );
+
+    return result;
+  }
+
+  const flpRootTerm =
     1 +
     (fl ** 2 / 0.00214) *
-      sumZeta *
-      (ratio / (valveSize * 25.4) ** 2) ** 2;
+      flpFittingsCoefficient *
+      cvDiameterTerm;
+
   if (
-    !Number.isFinite(squareRootTerm) ||
-    squareRootTerm <= 0
+    !Number.isFinite(flpRootTerm) ||
+    flpRootTerm <= 0
   ) {
     result.warnings.push(
       "FLP was not calculated: the square-root term must be finite and positive."
     );
+
     return result;
   }
 
-  const FLP = fl / Math.sqrt(squareRootTerm);
+  const FLP = fl / Math.sqrt(flpRootTerm);
 
   if (!Number.isFinite(FLP) || FLP <= 0) {
     result.warnings.push(
