@@ -3,39 +3,15 @@ import {
   calculateLiquidFLP,
 } from "./liquidCvParameters";
 
-// Preserve compatibility with any existing imports
-// of these functions from liquidSizing.js.
 export {
   calculateLiquidTrimParameters,
   calculateLiquidFLP,
 };
 
-/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  LIQUID SIZING
-
-  Provisional equation:
-  Cv = 1.156 * m / sqrt(1000 * density * dP)
-
-  m       = mass flow in kg/h
-  density = fluid density in kg/m³
-  dP      = pressure difference in bar
-
-  Cv-based parameters are calculated in:
-  liquidCvParameters.js
-
-  FL, FLP, FP, Fd, xT and xTP are calculated
-  for information only. They are not yet
-  applied as sizing corrections.
-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
-
 const KG_PER_LB = 0.45359237;
 const M3_PER_US_GALLON = 0.003785411784;
 const KG_M3_PER_LB_FT3 = 16.01846337396014;
 const PSI_PER_BAR = 14.503773773;
-
-/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  HELPER: READ A VALID NUMBER
-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
 function readNumber(value) {
   if (
@@ -51,28 +27,255 @@ function readNumber(value) {
   return Number.isFinite(number) ? number : null;
 }
 
-/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  MAIN LIQUID SIZING FUNCTION
+function convertVapourPressureToBarAbsolute(value, unit = "bara") {
+  const pressure = readNumber(value);
 
-  Optional second argument:
-  {
-    ratedCv: selected valve's design Cv,
-    flCoefficients: matching CSV coefficient row,
-    lookupCode: optional parameter lookup code,
-    selectedValve: existing valve selection,
-    pipework: existing pipework selections
+  if (pressure === null || pressure < 0) {
+    return null;
   }
 
-  Required diameter selections:
-  selectedValve.size
-  pipework.inletPipeSize
-  pipework.outletPipeSize
+  let pressureBarAbsolute;
 
-  All three size selections are in inches.
+  switch (unit) {
+    case "bara":
+      pressureBarAbsolute = pressure;
+      break;
 
-  The existing flCoefficients argument name is
-  retained so existing callers remain compatible.
-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+    case "psia":
+      pressureBarAbsolute = pressure / PSI_PER_BAR;
+      break;
+
+    case "kPaa":
+      pressureBarAbsolute = pressure / 100;
+      break;
+
+    case "MPaa":
+      pressureBarAbsolute = pressure * 10;
+      break;
+
+    case "Paa":
+      pressureBarAbsolute = pressure / 100000;
+      break;
+
+    case "kgcm2a":
+      pressureBarAbsolute = pressure * 0.980665;
+      break;
+
+    default:
+      return null;
+  }
+
+  return Number.isFinite(pressureBarAbsolute)
+    ? pressureBarAbsolute
+    : null;
+}
+
+/*
+  HELPER: CONVERT INLET PRESSURE TO bar ABSOLUTE
+*/
+
+function convertInletPressureToBarAbsolute(
+  value,
+  unit,
+  atmosphericPressureBar
+) {
+  const pressure = readNumber(value);
+
+  if (pressure === null) {
+    return null;
+  }
+
+  let pressureBar;
+  let isGauge = false;
+
+  switch (unit) {
+    case "bara":
+      pressureBar = pressure;
+      break;
+
+    case "barg":
+      pressureBar = pressure;
+      isGauge = true;
+      break;
+
+    case "psia":
+      pressureBar = pressure / PSI_PER_BAR;
+      break;
+
+    case "psig":
+      pressureBar = pressure / PSI_PER_BAR;
+      isGauge = true;
+      break;
+
+    case "kPaa":
+      pressureBar = pressure / 100;
+      break;
+
+    case "kPag":
+      pressureBar = pressure / 100;
+      isGauge = true;
+      break;
+
+    case "MPaa":
+      pressureBar = pressure * 10;
+      break;
+
+    case "MPag":
+      pressureBar = pressure * 10;
+      isGauge = true;
+      break;
+
+    case "Paa":
+      pressureBar = pressure / 100000;
+      break;
+
+    case "Pag":
+      pressureBar = pressure / 100000;
+      isGauge = true;
+      break;
+
+    case "kgcm2a":
+      pressureBar = pressure * 0.980665;
+      break;
+
+    case "kgcm2g":
+      pressureBar = pressure * 0.980665;
+      isGauge = true;
+      break;
+
+    default:
+      return null;
+  }
+
+  if (isGauge) {
+    const atmosphere = readNumber(atmosphericPressureBar);
+
+    if (atmosphere === null || atmosphere <= 0) {
+      return null;
+    }
+
+    pressureBar += atmosphere;
+  }
+
+  return Number.isFinite(pressureBar) && pressureBar > 0
+    ? pressureBar
+    : null;
+}
+
+/*
+  HELPER: LIQUID CRITICAL PRESSURE RATIO FACTOR
+  Both pressures must be in bar absolute.
+*/
+
+function calculateLiquidFF(
+  vapourPressureBarAbsolute,
+  criticalPressureBarAbsolute
+) {
+  const pV = readNumber(vapourPressureBarAbsolute);
+  const pC = readNumber(criticalPressureBarAbsolute);
+
+  if (
+    pV === null ||
+    pC === null ||
+    pV < 0 ||
+    pC <= 0 ||
+    pV > pC
+  ) {
+    return null;
+  }
+
+  const FF = 0.96 - 0.28 * Math.sqrt(pV / pC);
+
+  return Number.isFinite(FF) ? FF : null;
+}
+
+/*
+  HELPER: CHOKING PRESSURE DROP
+
+  dpCHOKED = (FLP / FP)^2 * (pInAbsolute - FF * pV)
+
+  Input pressures: bar absolute.
+  Output pressure difference: bar.
+  Missing or invalid inputs return null.
+*/
+
+function calculateLiquidChokingPressureDrop({
+  FLP,
+  FP,
+  FF,
+  pInAbsolute,
+  pV,
+}) {
+  const recoveryFactor = readNumber(FLP);
+  const pipingFactor = readNumber(FP);
+  const criticalPressureFactor = readNumber(FF);
+  const inletPressure = readNumber(pInAbsolute);
+  const vapourPressure = readNumber(pV);
+
+  if (
+    recoveryFactor === null ||
+    recoveryFactor <= 0 ||
+    pipingFactor === null ||
+    pipingFactor <= 0 ||
+    criticalPressureFactor === null ||
+    criticalPressureFactor <= 0 ||
+    inletPressure === null ||
+    inletPressure <= 0 ||
+    vapourPressure === null ||
+    vapourPressure < 0
+  ) {
+    return null;
+  }
+
+  const pressureTerm =
+    inletPressure - criticalPressureFactor * vapourPressure;
+
+  if (!Number.isFinite(pressureTerm) || pressureTerm <= 0) {
+    return null;
+  }
+
+  const dpCHOKED =
+    Math.pow(recoveryFactor / pipingFactor, 2) * pressureTerm;
+
+  return Number.isFinite(dpCHOKED) && dpCHOKED > 0
+    ? dpCHOKED
+    : null;
+}
+
+/*
+  HELPER: SIZING PRESSURE DROP
+
+  dpSIZING = min(actual pressure drop, choking pressure drop)
+
+  Both inputs and the result are pressure differences in bar.
+  Missing, non-finite, or non-positive inputs return null.
+
+  This value is calculated for display only.
+  It is not yet applied to the Cv calculation.
+*/
+
+function calculateLiquidSizingPressureDrop({
+  pressureDropBar,
+  dpCHOKED,
+}) {
+  const actualPressureDrop = readNumber(pressureDropBar);
+  const chokingPressureDrop = readNumber(dpCHOKED);
+
+  if (
+    actualPressureDrop === null ||
+    actualPressureDrop <= 0 ||
+    chokingPressureDrop === null ||
+    chokingPressureDrop <= 0
+  ) {
+    return null;
+  }
+
+  return Math.min(actualPressureDrop, chokingPressureDrop);
+}
+
+/*
+  MAIN LIQUID SIZING FUNCTION
+*/
 
 export function calculateLiquidSizing(
   inputs,
@@ -82,13 +285,36 @@ export function calculateLiquidSizing(
     lookupCode = null,
     selectedValve = null,
     pipework = null,
+    selectedFluid = null,
+    atmosphericPressureBar = 1.01325,
   } = {}
 ) {
+  const pC = readNumber(selectedFluid?.criticalPressure);
+
   const processCaseResults = inputs.processCases.map((processCase) => {
     const flowRate = readNumber(processCase.flowRate);
     const pressureIn = readNumber(processCase.pressureIn);
     const pressureOut = readNumber(processCase.pressureOut);
 
+    // Read the current box value, including any manual override.
+    // Do not recalculate vapour pressure from Antoine coefficients.
+    const vapourPressureUnit =
+      processCase.vapourPressureUnit ?? "bara";
+
+    const pV = convertVapourPressureToBarAbsolute(
+      processCase.vapourPressure,
+      vapourPressureUnit
+    );
+
+    const FF = calculateLiquidFF(pV, pC);
+
+    const pInAbsolute = convertInletPressureToBarAbsolute(
+      pressureIn,
+      processCase.pressureUnit,
+      atmosphericPressureBar
+    );
+
+    // Actual pressure drop from the user's process-case inputs.
     const pressureDrop =
       pressureIn !== null && pressureOut !== null
         ? pressureIn - pressureOut
@@ -115,7 +341,6 @@ export function calculateLiquidSizing(
       densityKgM3
     );
 
-    // Retain the existing volumetric-flow result field.
     const flowRateGpm =
       massFlowKgH !== null &&
       densityKgM3 !== null &&
@@ -123,6 +348,7 @@ export function calculateLiquidSizing(
         ? massFlowKgH / densityKgM3 / (M3_PER_US_GALLON * 60)
         : null;
 
+    // Keep the existing provisional Cv calculation unchanged.
     const liquidCvResult = calculateLiquidCv({
       massFlowKgH,
       densityKgM3,
@@ -137,14 +363,30 @@ export function calculateLiquidSizing(
 
     const flpResult = calculateLiquidFLP({
       FL: trimResult.FL,
-      xT: trimResult.xT, // NEW: provide xT for the xTP calculation.
+      xT: trimResult.xT,
       r: trimResult.cvRatio,
       ratedCv,
       selectedValve,
       pipework,
     });
 
+    const dpCHOKED = calculateLiquidChokingPressureDrop({
+      FLP: flpResult.FLP,
+      FP: flpResult.FP,
+      FF,
+      pInAbsolute,
+      pV,
+    });
+
+    // Compare pressure differences in the same unit: bar.
+    const dpSIZING = calculateLiquidSizingPressureDrop({
+      pressureDropBar,
+      dpCHOKED,
+    });
+
     const inputWarnings = [];
+    const ffWarnings = [];
+    const chokingWarnings = [];
 
     if (flowRate === null || flowRate <= 0) {
       inputWarnings.push("Enter a positive flow rate.");
@@ -178,17 +420,75 @@ export function calculateLiquidSizing(
       );
     }
 
+    if (pV === null) {
+      ffWarnings.push(
+        "FF unavailable: enter a non-negative vapour pressure using a supported absolute-pressure unit."
+      );
+    }
+
+    if (pC === null || pC <= 0) {
+      ffWarnings.push(
+        "FF unavailable: the selected fluid requires a positive critical pressure in bar absolute."
+      );
+    }
+
+    if (
+      pV !== null &&
+      pC !== null &&
+      pC > 0 &&
+      pV > pC
+    ) {
+      ffWarnings.push(
+        "FF unavailable: vapour pressure exceeds the selected fluid's critical pressure. Check the value, units, and fluid."
+      );
+    }
+
+    if (pInAbsolute === null) {
+      chokingWarnings.push(
+        "Choking pressure drop unavailable: enter a valid inlet pressure using an explicit absolute or gauge unit. Gauge conversion also requires a positive atmospheric pressure."
+      );
+    }
+
+    const FLP = readNumber(flpResult.FLP);
+    const FP = readNumber(flpResult.FP);
+
+    if (
+      FLP === null ||
+      FLP <= 0 ||
+      FP === null ||
+      FP <= 0
+    ) {
+      chokingWarnings.push(
+        "Choking pressure drop unavailable: valid positive FLP and FP values are required."
+      );
+    }
+
+    if (FF === null) {
+      chokingWarnings.push(
+        "Choking pressure drop unavailable: FF is unavailable."
+      );
+    }
+
+    if (
+      pInAbsolute !== null &&
+      FF !== null &&
+      pV !== null &&
+      pInAbsolute - FF * pV <= 0
+    ) {
+      chokingWarnings.push(
+        "Choking pressure drop unavailable: inlet absolute pressure minus FF times vapour pressure must be positive."
+      );
+    }
+
     return {
       id: processCase.id,
       caseName: processCase.caseName,
 
-      // Existing result fields.
       flowRateGpm,
       pressureDrop,
       pressureDropPsi,
       specificGravity,
 
-      // Normalized inputs and provisional result.
       massFlowKgH,
       densityKgM3,
       pressureDropBar,
@@ -198,8 +498,6 @@ export function calculateLiquidSizing(
       calculationBasis: liquidCvResult?.calculationBasis ?? null,
       flowRegime: liquidCvResult?.flowRegime ?? null,
 
-      // Zeta values remain internal.
-      // Stroke is separate and is not calculated here.
       technicalDetails: {
         lookupCode,
         ratedCv: trimResult.ratedCv,
@@ -209,19 +507,29 @@ export function calculateLiquidSizing(
         FLP: flpResult.FLP,
         FP: flpResult.FP,
         Fd: trimResult.Fd,
+        FF,
         xT: trimResult.xT,
-        xTP: flpResult.xTP, // NEW: expose xTP to the information panel.
+        xTP: flpResult.xTP,
+
+        // Pressure differences in bar.
+        dpCHOKED,
+        dpSIZING,
+
+        // Absolute pressures in bar.
+        pInAbsolute,
+        pV,
+        pC,
       },
 
       warnings: [
         ...inputWarnings,
+        ...ffWarnings,
+        ...chokingWarnings,
         ...(liquidCvResult?.warnings ?? []),
         ...(liquidCvResult ? trimResult.warnings : []),
         ...(liquidCvResult ? flpResult.warnings : []),
       ],
 
-      // Missing trim or diameter data does not prevent
-      // provisional Cv calculation.
       canCalculate: Boolean(liquidCvResult),
     };
   });
@@ -231,11 +539,10 @@ export function calculateLiquidSizing(
   };
 }
 
-/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+/*
   PROVISIONAL LIQUID Cv CALCULATION
-
-  No iteration or correction pass here yet.
-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+  Unchanged: dpCHOKED and dpSIZING are not yet applied to Cv.
+*/
 
 export function calculateLiquidCv({
   massFlowKgH,
@@ -271,37 +578,30 @@ export function calculateLiquidCv({
 
   return {
     provisionalCv,
-
-    // Use the provisional value until correction equations
-    // have been implemented.
     requiredCv: provisionalCv,
 
     calculationBasis:
       "Provisional liquid Cv: 1.156 × m / √(1000 × density × dP)",
 
     flowRegime:
-      "Preliminary liquid calculation — choking not evaluated",
+      "Preliminary liquid calculation — choking not applied",
 
     warnings: [
       "Provisional Cv only: the correction pass is not yet implemented.",
-      "Cavitation, flashing, viscosity, fittings, and choked-flow checks are not yet implemented.",
+      "The choking and sizing pressure drops are calculated separately but are not yet applied to Cv. Cavitation, flashing, viscosity, and fitting corrections are not yet applied to Cv.",
     ],
   };
 }
 
-/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+/*
   HELPER: CONVERT FLOW TO kg/h
-
-  gpm is treated as US gallons per minute.
-  Volumetric flows use the process-case density.
-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+*/
 
 function convertFlowToMassKgH(flowRate, flowUnit, densityKgM3) {
   if (flowRate === null || !Number.isFinite(flowRate)) {
     return null;
   }
 
-  // Mass-flow inputs do not require density for conversion.
   switch (flowUnit) {
     case "kg/h":
       return flowRate;
@@ -348,12 +648,9 @@ function convertFlowToMassKgH(flowRate, flowUnit, densityKgM3) {
   }
 }
 
-/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+/*
   HELPER: CONVERT PRESSURE DIFFERENCE TO bar
-
-  Inlet and outlet pressures must use the same
-  unit and reference basis.
-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+*/
 
 function convertPressureDropToBar(pressureDrop, pressureUnit) {
   if (pressureDrop === null || !Number.isFinite(pressureDrop)) {
@@ -382,6 +679,8 @@ function convertPressureDropToBar(pressureDrop, pressureUnit) {
       return pressureDrop * 10;
 
     case "Pa":
+    case "Pag":
+    case "Paa":
       return pressureDrop / 100000;
 
     case "kg/cm2":
@@ -395,12 +694,9 @@ function convertPressureDropToBar(pressureDrop, pressureUnit) {
   }
 }
 
-/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+/*
   HELPER: GET DENSITY IN kg/m³
-
-  Retains the application's existing convention:
-  density = specific gravity * 1000.
-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+*/
 
 function getDensityKgM3(processCase, inputs) {
   if (inputs.densityMode === "sg") {

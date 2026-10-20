@@ -54,6 +54,14 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
   border-bottom: 1px solid #e5e7eb;
 
   background: #f8fafc;
+
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.information-panel__header--dragging {
+  cursor: grabbing;
 }
 
 .information-panel .information-panel__title {

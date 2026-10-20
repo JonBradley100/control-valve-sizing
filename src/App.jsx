@@ -1,276 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
+
 import { loadTrimDatabase } from "./data/loadTrimDatabase";
 import { loadFluidDatabase } from "./data/loadFluidDatabase";
-import "./App.css";
+import { loadCvParameterDatabase } from "./data/loadCvParameterDatabase";
+
 import ResultPanel from "./components/ResultPanel";
 import TrimSelectionPanel from "./components/TrimSelectionPanel";
 import ProcessCasesPanel from "./components/ProcessCasesPanel";
+
 import { calculateLiquidSizing } from "./calculations/iec60534/liquidSizing";
+import { calculateCaseVapourPressure } from "./calculations/fluidProperties";
 
-/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  HELPER: READ A VALID NUMBER
-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+import { readNumber } from "./utils/readNumber";
+import { convertAbsolutePressure } from "./utils/unitConversions";
+import { getCvParameterCode } from "./utils/valveCodes";
 
-function readNumber(value) {
-  if (
-    value === null ||
-    value === undefined ||
-    String(value).trim() === ""
-  ) {
-    return null;
-  }
-
-  const number = Number(value);
-
-  return Number.isFinite(number) ? number : null;
-}
-
-/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  HELPER: PARSE Cv PARAMETER CSV
-
-  Supports the supplied CSV format:
-  unquoted headers, codes, and numeric values.
-
-  Numeric conversion of FL coefficients is
-  handled by liquidSizing.js.
-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
-
-function parseCvBasedParameters(csvText) {
-  const lines = String(csvText)
-    .replace(/^\uFEFF/, "")
-    .split(/\r\n|\n|\r/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  if (lines.length < 2) {
-    throw new Error("CvBasedParameters.csv contains no parameter rows.");
-  }
-
-  const headers = lines[0].split(",").map((header) => header.trim());
-
-  const requiredHeaders = [
-    "code",
-    "FL0",
-    "FL1",
-    "FL2",
-    "FL3",
-    "FL4",
-    "FL5",
-  ];
-
-  const missingHeaders = requiredHeaders.filter(
-    (header) => !headers.includes(header)
-  );
-
-  if (missingHeaders.length > 0) {
-    throw new Error(
-      `CvBasedParameters.csv is missing columns: ${missingHeaders.join(", ")}.`
-    );
-  }
-
-  const seenCodes = new Set();
-
-  return lines.slice(1).map((line, index) => {
-    const values = line.split(",").map((value) => value.trim());
-
-    if (values.length !== headers.length) {
-      throw new Error(
-        `CvBasedParameters.csv row ${index + 2} has ${values.length} values; expected ${headers.length}.`
-      );
-    }
-
-    const row = Object.fromEntries(
-      headers.map((header, columnIndex) => [
-        header,
-        values[columnIndex],
-      ])
-    );
-
-    row.code = row.code.trim().toUpperCase();
-
-    if (!row.code) {
-      throw new Error(
-        `CvBasedParameters.csv row ${index + 2} has an empty code.`
-      );
-    }
-
-    if (seenCodes.has(row.code)) {
-      throw new Error(
-        `CvBasedParameters.csv contains duplicate code "${row.code}".`
-      );
-    }
-
-    seenCodes.add(row.code);
-
-    return row;
-  });
-}
-
-/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  HELPER: GET PARAMETER LOOKUP CODE
-
-  Example:
-  CU-06-015-1001-H-L -> 1HL
-
-  From the last three elements:
-  - First character of stage code
-  - Trim type
-  - Style
-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
-
-function getCvParameterCode(valveCode) {
-  const parts = String(valveCode ?? "").trim().split("-");
-
-  if (parts.length < 3) {
-    return "";
-  }
-
-  const [stageCode, trimType, style] = parts
-    .slice(-3)
-    .map((part) => part.trim());
-
-  if (!stageCode || !trimType || !style) {
-    return "";
-  }
-
-  return `${stageCode.charAt(0)}${trimType}${style}`.toUpperCase();
-}
-
-/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  HELPER: CONVERT TEMPERATURE TO KELVIN
-
-  Supports both:
-  °C / °F
-  oC / oF
-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
-
-function temperatureToKelvin(value, unit) {
-  const temperature = readNumber(value);
-
-  if (temperature === null) {
-    return null;
-  }
-
-  let temperatureK;
-
-  switch (unit) {
-    case "°C":
-    case "oC":
-      temperatureK = temperature + 273.15;
-      break;
-
-    case "°F":
-    case "oF":
-      temperatureK = (temperature - 32) * (5 / 9) + 273.15;
-      break;
-
-    case "K":
-      temperatureK = temperature;
-      break;
-
-    default:
-      return null;
-  }
-
-  if (!Number.isFinite(temperatureK) || temperatureK <= 0) {
-    return null;
-  }
-
-  return temperatureK;
-}
-
-/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  HELPER: ABSOLUTE PRESSURE CONVERSION
-
-  Values are pascals per unit.
-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
-
-const ABSOLUTE_PRESSURE_FACTORS = {
-  bara: 100000,
-  psia: 6894.757293168,
-  kPaa: 1000,
-  kgcm2a: 98066.5,
-  MPaa: 1000000,
-};
-
-function convertAbsolutePressure(value, fromUnit, toUnit) {
-  const pressure = readNumber(value);
-
-  const fromFactor = ABSOLUTE_PRESSURE_FACTORS[fromUnit];
-  const toFactor = ABSOLUTE_PRESSURE_FACTORS[toUnit];
-
-  if (
-    pressure === null ||
-    pressure < 0 ||
-    !fromFactor ||
-    !toFactor
-  ) {
-    return "";
-  }
-
-  const convertedPressure = (pressure * fromFactor) / toFactor;
-
-  if (!Number.isFinite(convertedPressure)) {
-    return "";
-  }
-
-  return convertedPressure.toFixed(4);
-}
-
-/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-  HELPER: CALCULATE VAPOUR PRESSURE
-
-  Retains your existing formula:
-  EXP(A - B / (temperatureK + C)) / 760
-
-  The result is treated as bara.
-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
-
-function calculateCaseVapourPressure(processCase, fluid) {
-  if (!fluid) {
-    return "";
-  }
-
-  const coefficientA = readNumber(fluid.pV_A);
-  const coefficientB = readNumber(fluid.pV_B);
-  const coefficientC = readNumber(fluid.pV_C);
-
-  const temperatureK = temperatureToKelvin(
-    processCase.temperature,
-    processCase.temperatureUnit
-  );
-
-  if (
-    coefficientA === null ||
-    coefficientB === null ||
-    coefficientC === null ||
-    temperatureK === null
-  ) {
-    return "";
-  }
-
-  const denominator = temperatureK + coefficientC;
-
-  if (!Number.isFinite(denominator) || denominator === 0) {
-    return "";
-  }
-
-  const vapourPressureBara =
-    Math.exp(coefficientA - coefficientB / denominator) / 760;
-
-  if (
-    !Number.isFinite(vapourPressureBara) ||
-    vapourPressureBara < 0
-  ) {
-    return "";
-  }
-
-  return convertAbsolutePressure(
-    vapourPressureBara,
-    "bara",
-    processCase.vapourPressureUnit ?? "bara"
-  );
-}
+import "./App.css";
 
 /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
   HELPER: CREATE A DEFAULT PROCESS CASE
@@ -311,10 +56,8 @@ function App() {
     itemNumber: "",
     tagNumber: "LV-1001",
     fluidName: "",
-
-    densityMode: "sg",
+    densityMode: "rho",
     densityUnit: "kg/m³",
-
     processCases: [createDefaultProcessCase(1)],
   });
 
@@ -425,31 +168,16 @@ function App() {
 
   /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
     8a. LOAD Cv PARAMETER DATABASE
-
-    File:
-    public/data/CvBasedParameters.csv
-
-    Browser request:
-    /data/CvBasedParameters.csv
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   useEffect(() => {
     const controller = new AbortController();
 
-    async function loadCvParameterDatabase() {
+    async function loadParameters() {
       try {
-        const response = await fetch("/data/CvBasedParameters.csv", {
+        const rows = await loadCvParameterDatabase({
           signal: controller.signal,
         });
-
-        if (!response.ok) {
-          throw new Error(
-            `Could not load /data/CvBasedParameters.csv: HTTP ${response.status}.`
-          );
-        }
-
-        const csvText = await response.text();
-        const rows = parseCvBasedParameters(csvText);
 
         if (controller.signal.aborted) {
           return;
@@ -473,7 +201,7 @@ function App() {
       }
     }
 
-    loadCvParameterDatabase();
+    loadParameters();
 
     return () => controller.abort();
   }, []);
@@ -482,12 +210,18 @@ function App() {
     9. SET DEFAULT FLUID
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
-  useEffect(() => {
+ useEffect(() => {
     if (selectedFluidName || filteredFluidDatabase.length === 0) {
       return;
     }
 
-    setSelectedFluidName(filteredFluidDatabase[0].fluidName);
+    const defaultFluid =
+      filteredFluidDatabase.find(
+        (fluid) =>
+          String(fluid.fluidName).trim().toUpperCase() === "WATER"
+      ) ?? filteredFluidDatabase[0];
+
+    setSelectedFluidName(defaultFluid.fluidName);
   }, [filteredFluidDatabase, selectedFluidName]);
 
   /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
@@ -569,8 +303,6 @@ function App() {
 
   /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
     13a. PARAMETER LOOKUP CODE
-
-    CU-06-015-1001-H-L -> 1HL
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   const selectedParameterCode = useMemo(
@@ -605,14 +337,9 @@ function App() {
   /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
     14. CALCULATION RESULT
 
-    Pass selected design Cv, matching
-    coefficients, valve selection and
-    pipework selections into liquidSizing.js.
-
-    Valve and pipe sizes remain in inches.
-    Conversion for FLP occurs in liquidSizing.js.
-
-    Recalculate whenever these change.
+    Selected fluid is passed through so the
+    sizing result can expose criticalPressure
+    as technicalDetails.pC.
   XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
 
   const result = useMemo(() => {
@@ -623,6 +350,7 @@ function App() {
         lookupCode: selectedParameterCode || null,
         selectedValve,
         pipework,
+        selectedFluid,
       });
     }
 
@@ -639,6 +367,7 @@ function App() {
     selectedParameterCode,
     selectedValve,
     pipework,
+    selectedFluid,
   ]);
 
   /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
@@ -666,7 +395,6 @@ function App() {
           [field]: value,
         };
 
-        // Recalculate when temperature or temperature unit changes.
         if (field === "temperature" || field === "temperatureUnit") {
           updatedCase.vapourPressure =
             fluidType === "liquid"
@@ -674,7 +402,6 @@ function App() {
               : "";
         }
 
-        // Preserve manually entered vapour pressure during unit changes.
         if (field === "vapourPressureUnit") {
           updatedCase.vapourPressure = convertAbsolutePressure(
             processCase.vapourPressure,
@@ -732,7 +459,6 @@ function App() {
         vapourPressureUnit: lastCase?.vapourPressureUnit ?? "bara",
       };
 
-      // Apply selected fluid density when adding a fresh default case.
       if (!lastCase && selectedFluid) {
         const selectedDensity = readNumber(selectedFluid.rho);
 
@@ -852,8 +578,6 @@ function App() {
           {/* PIPEWORK MAIN ROW */}
 
           <div className="pipework-main-row">
-            {/* FLUID SELECTOR */}
-
             <div className="pipework-column fluid-column">
               <div className="fluid-selector-row">
                 <label className="fluid-select-label" htmlFor="fluid-select">
@@ -880,8 +604,6 @@ function App() {
                 </select>
               </div>
             </div>
-
-            {/* INLET PIPEWORK */}
 
             <div className="pipework-column">
               <div className="fluid-selector-row">
@@ -932,8 +654,6 @@ function App() {
                 </select>
               </div>
             </div>
-
-            {/* OUTLET PIPEWORK */}
 
             <div className="pipework-column">
               <div className="fluid-selector-row">
@@ -1013,8 +733,6 @@ function App() {
           )}
         </div>
       </section>
-
-      {/* MAIN CONTENT GRID */}
 
       <section className="content-grid">
         <TrimSelectionPanel

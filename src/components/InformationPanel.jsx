@@ -1,63 +1,63 @@
-import { useEffect, useId, useRef, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import "./InformationPanel.css";
 
-function formatValue(value, decimalPlaces = 4) {
-  if (
-    value === null ||
-    value === undefined ||
-    String(value).trim() === ""
-  ) {
-    return "—";
-  }
-
-  const number = Number(value);
-
-  return Number.isFinite(number)
-    ? number.toFixed(decimalPlaces)
-    : "—";
-}
-
-function calculateCvPercent(requiredCv, ratedCv) {
-  if (
-    requiredCv === null ||
-    requiredCv === undefined ||
-    String(requiredCv).trim() === "" ||
-    ratedCv === null ||
-    ratedCv === undefined ||
-    String(ratedCv).trim() === ""
-  ) {
-    return null;
-  }
-
-  const required = Number(requiredCv);
-  const rated = Number(ratedCv);
-
-  if (
-    !Number.isFinite(required) ||
-    !Number.isFinite(rated) ||
-    required < 0 ||
-    rated <= 0
-  ) {
-    return null;
-  }
-
-  const percentage = (required / rated) * 100;
-
-  return Number.isFinite(percentage) ? percentage : null;
-}
-
-function InformationPanel({
+export default function InformationPanel({
   caseResult = null,
   caseIndex = null,
   ratedCv = null,
   onClose = () => {},
-}) {
+} = {}) {
   const dialogRef = useRef(null);
   const dragRef = useRef(null);
   const dialogTitleId = useId();
 
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
+
+  function formatValue(value, decimalPlaces = 4) {
+    if (
+      value === null ||
+      value === undefined ||
+      String(value).trim() === ""
+    ) {
+      return "—";
+    }
+
+    const number = Number(value);
+
+    return Number.isFinite(number)
+      ? number.toFixed(decimalPlaces)
+      : "—";
+  }
+
+  function calculateCvPercent(requiredCv, designCv) {
+    if (
+      requiredCv === null ||
+      requiredCv === undefined ||
+      String(requiredCv).trim() === "" ||
+      designCv === null ||
+      designCv === undefined ||
+      String(designCv).trim() === ""
+    ) {
+      return null;
+    }
+
+    const required = Number(requiredCv);
+    const rated = Number(designCv);
+
+    if (
+      !Number.isFinite(required) ||
+      !Number.isFinite(rated) ||
+      required < 0 ||
+      rated <= 0
+    ) {
+      return null;
+    }
+
+    const percentage = (required / rated) * 100;
+
+    return Number.isFinite(percentage) ? percentage : null;
+  }
 
   const details = caseResult?.technicalDetails ?? {};
 
@@ -66,7 +66,9 @@ function InformationPanel({
     ratedCv
   );
 
-  // Native dialog provides focus management and Escape-to-close.
+  const dpCHOKEDText = formatValue(details.dpCHOKED);
+  const dpSIZINGText = formatValue(details.dpSIZING);
+
   useEffect(() => {
     const dialog = dialogRef.current;
 
@@ -75,7 +77,6 @@ function InformationPanel({
     }
 
     if (caseResult && !dialog.open) {
-      // Start each newly opened panel in the centre.
       setPosition({ x: 0, y: 0 });
       dialog.showModal();
     } else if (!caseResult && dialog.open) {
@@ -87,7 +88,6 @@ function InformationPanel({
     const dialog = dialogRef.current;
 
     if (dialog?.open) {
-      // The dialog's onClose event notifies the parent.
       dialog.close();
     } else {
       onClose();
@@ -95,8 +95,6 @@ function InformationPanel({
   }
 
   function startDragging(event) {
-    // Only drag with the primary pointer button.
-    // Keep the close button independent of dragging.
     if (
       event.button !== 0 ||
       !event.isPrimary ||
@@ -119,7 +117,6 @@ function InformationPanel({
 
     event.currentTarget.setPointerCapture(event.pointerId);
     event.preventDefault();
-
     setIsDragging(true);
   }
 
@@ -133,21 +130,14 @@ function InformationPanel({
     const requestedX = event.clientX - drag.startX;
     const requestedY = event.clientY - drag.startY;
 
-    // Keep the panel inside the viewport.
     const movementX = Math.max(
       -drag.rect.left,
-      Math.min(
-        requestedX,
-        window.innerWidth - drag.rect.right
-      )
+      Math.min(requestedX, window.innerWidth - drag.rect.right)
     );
 
     const movementY = Math.max(
       -drag.rect.top,
-      Math.min(
-        requestedY,
-        window.innerHeight - drag.rect.bottom
-      )
+      Math.min(requestedY, window.innerHeight - drag.rect.bottom)
     );
 
     setPosition({
@@ -186,19 +176,29 @@ function InformationPanel({
         onClose();
       }}
       onClick={(event) => {
-        if (event.target === event.currentTarget) {
+        if (event.target !== event.currentTarget) {
+          return;
+        }
+
+        const rect = event.currentTarget.getBoundingClientRect();
+
+        if (
+          event.clientX < rect.left ||
+          event.clientX > rect.right ||
+          event.clientY < rect.top ||
+          event.clientY > rect.bottom
+        ) {
           closeInformation();
         }
       }}
     >
       <div className="information-panel__content">
         <div
-          className="information-panel__header"
-          style={{
-            cursor: isDragging ? "grabbing" : "grab",
-            touchAction: "none",
-            userSelect: "none",
-          }}
+          className={
+            isDragging
+              ? "information-panel__header information-panel__header--dragging"
+              : "information-panel__header"
+          }
           onPointerDown={startDragging}
           onPointerMove={movePanel}
           onPointerUp={stopDragging}
@@ -263,6 +263,35 @@ function InformationPanel({
             </div>
 
             <div className="information-panel__detail-row">
+              <dt title="Liquid critical pressure ratio factor">
+                F<sub>F</sub>
+              </dt>
+              <dd>{formatValue(details.FF)}</dd>
+            </div>
+
+            <div className="information-panel__detail-row">
+              <dt title="Choking pressure drop">
+                {"\u0394"}p<sub>CHOKED</sub>
+              </dt>
+              <dd>
+                {dpCHOKEDText === "—"
+                  ? "—"
+                  : `${dpCHOKEDText} bar`}
+              </dd>
+            </div>
+
+            <div className="information-panel__detail-row">
+              <dt title="Sizing pressure drop: the smaller of the actual and choking pressure drops">
+                {"\u0394"}p<sub>SIZING</sub>
+              </dt>
+              <dd>
+                {dpSIZINGText === "—"
+                  ? "—"
+                  : `${dpSIZINGText} bar`}
+              </dd>
+            </div>
+
+            <div className="information-panel__detail-row">
               <dt>
                 x<sub>T</sub>
               </dt>
@@ -275,6 +304,13 @@ function InformationPanel({
               </dt>
               <dd>{formatValue(details.xTP)}</dd>
             </div>
+
+            <div className="information-panel__detail-row">
+              <dt>
+                p<sub>C</sub>
+              </dt>
+              <dd>{formatValue(details.pC, 1)}</dd>
+            </div>
           </dl>
 
           <p className="information-panel__note">
@@ -283,13 +319,18 @@ function InformationPanel({
           </p>
 
           <p className="information-panel__note">
-            A dash means the value has not yet been calculated or is
-            not applicable.
+            The choking and sizing pressure drops are shown in bar.
+            The sizing pressure drop is the smaller of the actual
+            and choking pressure drops. Neither is yet applied to
+            the provisional Cv calculation.
+          </p>
+
+          <p className="information-panel__note">
+            A dash means the value is unavailable, invalid, or not
+            applicable.
           </p>
         </div>
       </div>
     </dialog>
   );
 }
-
-export default InformationPanel;
