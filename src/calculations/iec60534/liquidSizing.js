@@ -3,6 +3,8 @@ import {
   calculateLiquidFLP,
 } from "./liquidCvParameters";
 
+import calculateRefinedCv from "./calculateRefinedCv";
+
 export {
   calculateLiquidTrimParameters,
   calculateLiquidFLP,
@@ -480,6 +482,18 @@ export function calculateLiquidSizing(
       );
     }
 
+    const refinedCv = calculateRefinedCv({
+      volumetricFlowM3H:
+        Number.isFinite(massFlowKgH) &&
+        Number.isFinite(densityKgM3) &&
+        densityKgM3 > 0
+          ? massFlowKgH / densityKgM3
+          : null,
+      densityKgM3,
+      FP: flpResult.FP,
+      dpSIZING,
+    });
+
     return {
       id: processCase.id,
       caseName: processCase.caseName,
@@ -494,7 +508,7 @@ export function calculateLiquidSizing(
       pressureDropBar,
       provisionalCv: liquidCvResult?.provisionalCv ?? null,
 
-      requiredCv: liquidCvResult?.requiredCv ?? null,
+      requiredCv: refinedCv ?? liquidCvResult?.requiredCv ?? null,
       calculationBasis: liquidCvResult?.calculationBasis ?? null,
       flowRegime: liquidCvResult?.flowRegime ?? null,
 
