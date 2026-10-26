@@ -5,6 +5,8 @@ import {
 
 import calculateRefinedCv from "./calculateRefinedCv";
 
+import { calculateLiquidAcoustics } from "./liquidAcoustics";
+
 export {
   calculateLiquidTrimParameters,
   calculateLiquidFLP,
@@ -73,7 +75,7 @@ function convertVapourPressureToBarAbsolute(value, unit = "bara") {
 }
 
 /*
-  HELPER: CONVERT INLET PRESSURE TO bar ABSOLUTE
+  HELPER: CONVERT PROCESS PRESSURE TO bar ABSOLUTE
 */
 
 function convertInletPressureToBarAbsolute(
@@ -166,6 +168,7 @@ function convertInletPressureToBarAbsolute(
 
 /*
   HELPER: LIQUID CRITICAL PRESSURE RATIO FACTOR
+
   Both pressures must be in bar absolute.
 */
 
@@ -198,7 +201,6 @@ function calculateLiquidFF(
 
   Input pressures: bar absolute.
   Output pressure difference: bar.
-  Missing or invalid inputs return null.
 */
 
 function calculateLiquidChokingPressureDrop({
@@ -250,10 +252,6 @@ function calculateLiquidChokingPressureDrop({
   dpSIZING = min(actual pressure drop, choking pressure drop)
 
   Both inputs and the result are pressure differences in bar.
-  Missing, non-finite, or non-positive inputs return null.
-
-  This value is calculated for display only.
-  It is not yet applied to the Cv calculation.
 */
 
 function calculateLiquidSizingPressureDrop({
@@ -277,29 +275,59 @@ function calculateLiquidSizingPressureDrop({
 
 /*
   MAIN LIQUID SIZING FUNCTION
+
+  Ah:
+  - Supplied by App.jsx from the selected trim database row.
+  - Negative and zero values are valid.
+  - Missing values remain null.
+
+  Downstream acoustic geometry:
+  - downstreamDiameterMm: nominal diameter for c, in mm.
+  - downstreamWallThicknessMm: wall thickness for c, in mm.
+
+  Actual internal diameter for Lpi:
+  - Looked up by liquidAcoustics using pipeIDCsvText.
+  - Size and schedule come from the existing pipework object.
 */
 
 export function calculateLiquidSizing(
   inputs,
   {
     ratedCv = null,
+    Ah = null,
     flCoefficients = null,
     lookupCode = null,
     selectedValve = null,
     pipework = null,
     selectedFluid = null,
     atmosphericPressureBar = 1.01325,
+    downstreamDiameterMm = null,
+    downstreamWallThicknessMm = null,
+    pipeIDCsvText = null,
   } = {}
 ) {
   const pC = readNumber(selectedFluid?.criticalPressure);
+
+  const acousticAh = readNumber(Ah);
+
+  const acousticDownstreamDiameterMm =
+    readNumber(downstreamDiameterMm);
+
+  const acousticDownstreamWallThicknessMm =
+    readNumber(downstreamWallThicknessMm);
+
+  const downstreamPipeSizeInch =
+    readNumber(pipework?.outletPipeSize);
+
+  const downstreamPipeSchedule =
+    pipework?.outletPipeSchedule ?? null;
 
   const processCaseResults = inputs.processCases.map((processCase) => {
     const flowRate = readNumber(processCase.flowRate);
     const pressureIn = readNumber(processCase.pressureIn);
     const pressureOut = readNumber(processCase.pressureOut);
 
-    // Read the current box value, including any manual override.
-    // Do not recalculate vapour pressure from Antoine coefficients.
+    // Preserve the current box value, including manual overrides.
     const vapourPressureUnit =
       processCase.vapourPressureUnit ?? "bara";
 
@@ -316,7 +344,12 @@ export function calculateLiquidSizing(
       atmosphericPressureBar
     );
 
-    // Actual pressure drop from the user's process-case inputs.
+    const pOutAbsolute = convertInletPressureToBarAbsolute(
+      pressureOut,
+      processCase.pressureUnit,
+      atmosphericPressureBar
+    );
+
     const pressureDrop =
       pressureIn !== null && pressureOut !== null
         ? pressureIn - pressureOut
@@ -350,7 +383,6 @@ export function calculateLiquidSizing(
         ? massFlowKgH / densityKgM3 / (M3_PER_US_GALLON * 60)
         : null;
 
-    // Keep the existing provisional Cv calculation unchanged.
     const liquidCvResult = calculateLiquidCv({
       massFlowKgH,
       densityKgM3,
@@ -380,7 +412,6 @@ export function calculateLiquidSizing(
       pV,
     });
 
-    // Compare pressure differences in the same unit: bar.
     const dpSIZING = calculateLiquidSizingPressureDrop({
       pressureDropBar,
       dpCHOKED,
@@ -494,6 +525,35 @@ export function calculateLiquidSizing(
       dpSIZING,
     });
 
+    /*
+      ACOUSTICS
+
+      Use refined Cv with no provisional fallback.
+
+      Ah comes directly from the selected trim database row,
+      passed through App.jsx.
+
+      All acoustic intermediate parameters remain inside acoustics.
+    */
+
+    const acoustics = calculateLiquidAcoustics({
+      p1BarAbsolute: pInAbsolute,
+      p2BarAbsolute: pOutAbsolute,
+      pvBarAbsolute: pV,
+      Cv: refinedCv,
+      Fd: trimResult.Fd,
+      FL: trimResult.FL,
+      Ah: acousticAh,
+      dpChokedBar: dpCHOKED,
+      densityKgM3,
+      massFlowKgH,
+      downstreamDiameterMm: acousticDownstreamDiameterMm,
+      downstreamWallThicknessMm: acousticDownstreamWallThicknessMm,
+      pipeIDCsvText,
+      downstreamPipeSizeInch,
+      downstreamPipeSchedule,
+    });
+
     return {
       id: processCase.id,
       caseName: processCase.caseName,
@@ -511,6 +571,8 @@ export function calculateLiquidSizing(
       requiredCv: refinedCv ?? liquidCvResult?.requiredCv ?? null,
       calculationBasis: liquidCvResult?.calculationBasis ?? null,
       flowRegime: liquidCvResult?.flowRegime ?? null,
+
+      acoustics,
 
       technicalDetails: {
         lookupCode,
@@ -535,6 +597,7 @@ export function calculateLiquidSizing(
         pC,
       },
 
+      // Acoustic warnings remain inside acoustics.warnings.
       warnings: [
         ...inputWarnings,
         ...ffWarnings,
@@ -555,7 +618,8 @@ export function calculateLiquidSizing(
 
 /*
   PROVISIONAL LIQUID Cv CALCULATION
-  Unchanged: dpCHOKED and dpSIZING are not yet applied to Cv.
+
+  Unchanged: dpCHOKED and dpSIZING are not applied here.
 */
 
 export function calculateLiquidCv({

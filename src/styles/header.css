@@ -5,12 +5,21 @@
 }
 
 .title-row {
-  margin: 20px 0px 10px 0px;
+  margin: 20px 0 10px;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
   gap: 0.75rem;
   width: 100%;
+}
+
+.title-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  min-width: 0;
 }
 
 .version-label {
@@ -21,6 +30,39 @@
 
 .title-row .eyebrow {
   margin: 0;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+.header-action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0.5rem 1rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background-color: #ffffff;
+  color: #334155;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.header-action-button:hover {
+  background-color: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.header-action-button:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
 }
 
 .fluid-controls {

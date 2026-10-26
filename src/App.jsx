@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { loadTrimDatabase } from "./data/loadTrimDatabase";
 import { loadFluidDatabase } from "./data/loadFluidDatabase";
@@ -11,15 +11,21 @@ import ProcessCasesPanel from "./components/ProcessCasesPanel";
 import { calculateLiquidSizing } from "./calculations/iec60534/liquidSizing";
 import { calculateCaseVapourPressure } from "./calculations/fluidProperties";
 
+import {
+  loadPipeThicknessTable,
+  calculateDownstreamPipeThickness,
+} from "./calculations/downstreamPipeThickness";
+
 import { readNumber } from "./utils/readNumber";
 import { convertAbsolutePressure } from "./utils/unitConversions";
 import { getCvParameterCode } from "./utils/valveCodes";
+import { loadScenario } from "./utils/loadScenario";
 
 import "./App.css";
 
-/*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+/*
   HELPER: CREATE A DEFAULT PROCESS CASE
-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+*/
 
 function createDefaultProcessCase(id = 1) {
   return {
@@ -40,15 +46,25 @@ function createDefaultProcessCase(id = 1) {
 }
 
 function App() {
-  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  /*
+    SCENARIO FILE STATE AND REFERENCES
+  */
+
+  const restoredFluidRef = useRef(null);
+  const fileOperationRef = useRef(false);
+
+  const [fileBusy, setFileBusy] = useState(false);
+  const [fileStatus, setFileStatus] = useState(null);
+
+  /*
     1. FLUID TYPE STATE
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+  */
 
   const [fluidType, setFluidType] = useState("liquid");
 
-  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  /*
     2. MAIN INPUT STATE
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+  */
 
   const [inputs, setInputs] = useState({
     projectName: "",
@@ -70,9 +86,9 @@ function App() {
     }));
   };
 
-  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  /*
     3. SELECTED VALVE STATE
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+  */
 
   const [selectedValve, setSelectedValve] = useState({
     directionality: "",
@@ -83,9 +99,11 @@ function App() {
     style: "",
   });
 
-  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  /*
     4. PIPEWORK STATE
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+
+    Outlet pipe = downstream pipe.
+  */
 
   const [pipework, setPipework] = useState({
     inletPipeSize: "2",
@@ -94,9 +112,9 @@ function App() {
     outletPipeSchedule: "40",
   });
 
-  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  /*
     5. PIPEWORK OPTIONS
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+  */
 
   const pipeSizeOptions = [
     "2", "3", "4", "6", "8", "10", "12", "14",
@@ -106,19 +124,20 @@ function App() {
   ];
 
   const scheduleOptions = [
-    "5", "10", "20", "40", "80", "160",
-    "STD", "XS", "XXS", "5S", "10S", "20S", "40S",
+    "10", "20", "40", "80", "160",
+    "STD", "XS", "XXS", "5S", "10S", "40S", "80S",
   ];
 
-  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  /*
     6. DATABASE STATE
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+  */
 
   const [trimDatabase, setTrimDatabase] = useState([]);
   const [trimDatabaseError, setTrimDatabaseError] = useState(null);
 
   const [fluidDatabase, setFluidDatabase] = useState([]);
   const [fluidDatabaseError, setFluidDatabaseError] = useState(null);
+  const [fluidDatabaseLoaded, setFluidDatabaseLoaded] = useState(false);
   const [selectedFluidName, setSelectedFluidName] = useState("");
 
   const [cvParameterDatabase, setCvParameterDatabase] = useState([]);
@@ -127,48 +146,95 @@ function App() {
   const [cvParameterDatabaseLoaded, setCvParameterDatabaseLoaded] =
     useState(false);
 
+  const [pipeThicknessTable, setPipeThicknessTable] = useState(null);
+  const [pipeThicknessDatabaseError, setPipeThicknessDatabaseError] =
+    useState(null);
+
+  const [pipeIDCsvText, setPipeIDCsvText] = useState(null);
+  const [pipeIDDatabaseError, setPipeIDDatabaseError] = useState(null);
+
   const filteredFluidDatabase = useMemo(
     () => fluidDatabase.filter((fluid) => fluid.phase === fluidType),
     [fluidDatabase, fluidType]
   );
 
-  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  /*
     7. LOAD TRIM DATABASE
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+  */
 
   useEffect(() => {
+    let cancelled = false;
+
     loadTrimDatabase()
       .then((rows) => {
+        if (cancelled) {
+          return;
+        }
+
         console.log("Loaded trim database:", rows);
         console.log("First trim row:", rows[0]);
+
         setTrimDatabase(rows);
+        setTrimDatabaseError(null);
       })
       .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+
         console.error(error);
-        setTrimDatabaseError(error.message);
+
+        setTrimDatabaseError(
+          error instanceof Error ? error.message : String(error)
+        );
       });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  /*
     8. LOAD FLUID DATABASE
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+  */
 
   useEffect(() => {
+    let cancelled = false;
+
     loadFluidDatabase()
       .then((rows) => {
+        if (cancelled) {
+          return;
+        }
+
         console.log("Loaded fluid database:", rows);
         console.log("First fluid row:", rows[0]);
+
         setFluidDatabase(rows);
+        setFluidDatabaseError(null);
+        setFluidDatabaseLoaded(true);
       })
       .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+
         console.error(error);
-        setFluidDatabaseError(error.message);
+
+        setFluidDatabaseError(
+          error instanceof Error ? error.message : String(error)
+        );
+        setFluidDatabaseLoaded(false);
       });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  /*
     8a. LOAD Cv PARAMETER DATABASE
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+  */
 
   useEffect(() => {
     const controller = new AbortController();
@@ -206,11 +272,163 @@ function App() {
     return () => controller.abort();
   }, []);
 
-  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-    9. SET DEFAULT FLUID
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+  /*
+    8b. LOAD PIPE THICKNESS DATABASE
+  */
 
- useEffect(() => {
+  useEffect(() => {
+    let cancelled = false;
+
+    loadPipeThicknessTable()
+      .then((table) => {
+        if (cancelled) {
+          return;
+        }
+
+        setPipeThicknessTable(table);
+        setPipeThicknessDatabaseError(null);
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+
+        console.error("Unable to load pipe thickness database:", error);
+
+        setPipeThicknessTable(null);
+        setPipeThicknessDatabaseError(
+          error instanceof Error ? error.message : String(error)
+        );
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /*
+    8c. DOWNSTREAM PIPE THICKNESS
+
+    Missing / N/A thickness remains null.
+  */
+
+  const downstreamPipeThickness = useMemo(() => {
+    if (pipeThicknessDatabaseError) {
+      return {
+        tMm: null,
+        thicknessInch: null,
+        warnings: [
+          `Downstream pipe thickness unavailable: ${pipeThicknessDatabaseError}`,
+        ],
+      };
+    }
+
+    if (!pipeThicknessTable) {
+      return {
+        tMm: null,
+        thicknessInch: null,
+        warnings: [
+          "Downstream pipe thickness unavailable while the pipe thickness database is loading.",
+        ],
+      };
+    }
+
+    return calculateDownstreamPipeThickness({
+      table: pipeThicknessTable,
+      downstreamSizeInch: pipework.outletPipeSize,
+      downstreamSchedule: pipework.outletPipeSchedule,
+    });
+  }, [
+    pipeThicknessTable,
+    pipeThicknessDatabaseError,
+    pipework.outletPipeSize,
+    pipework.outletPipeSchedule,
+  ]);
+
+  /*
+    8d. LOAD PIPE INTERNAL DIAMETER DATABASE
+
+    File location: public/data/pipeID.csv.
+  */
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadPipeIDDatabase() {
+      try {
+        const response = await fetch("/data/pipeID.csv", {
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error(
+            `Unable to load /data/pipeID.csv: HTTP ${response.status}.`
+          );
+        }
+
+        const text = await response.text();
+
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        if (text.trim() === "") {
+          throw new Error("The pipeID.csv file is empty.");
+        }
+
+        if (/^\s*</.test(text.replace(/^\uFEFF/, ""))) {
+          throw new Error(
+            "The request for /data/pipeID.csv returned HTML. Check that pipeID.csv exists in public/data."
+          );
+        }
+
+        setPipeIDCsvText(text);
+        setPipeIDDatabaseError(null);
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        console.error("Unable to load pipe ID database:", error);
+
+        setPipeIDCsvText(null);
+        setPipeIDDatabaseError(
+          error instanceof Error ? error.message : String(error)
+        );
+      }
+    }
+
+    loadPipeIDDatabase();
+
+    return () => controller.abort();
+  }, []);
+
+  /*
+    8e. DOWNSTREAM NOMINAL DIAMETER FOR SOUND SPEED
+
+    Preserve the agreed nominal-size conversion for c.
+    Actual internal diameter for Lpi is looked up separately.
+  */
+
+  const downstreamNominalDiameterMm = useMemo(() => {
+    const sizeInch = readNumber(pipework.outletPipeSize);
+
+    if (sizeInch === null || sizeInch <= 0) {
+      return null;
+    }
+
+    const diameterMm = sizeInch * 25.4;
+
+    return Number.isFinite(diameterMm) && diameterMm > 0
+      ? diameterMm
+      : null;
+  }, [pipework.outletPipeSize]);
+
+  /*
+    9. SET DEFAULT FLUID
+  */
+
+  useEffect(() => {
     if (selectedFluidName || filteredFluidDatabase.length === 0) {
       return;
     }
@@ -224,9 +442,9 @@ function App() {
     setSelectedFluidName(defaultFluid.fluidName);
   }, [filteredFluidDatabase, selectedFluidName]);
 
-  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  /*
     10. SELECTED FLUID LOOKUP
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+  */
 
   const selectedFluid = useMemo(() => {
     return (
@@ -236,11 +454,23 @@ function App() {
     );
   }, [filteredFluidDatabase, selectedFluidName]);
 
-  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  /*
     11. SYNC SELECTED FLUID TO INPUTS
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+  */
 
   useEffect(() => {
+    const restoredFluid = restoredFluidRef.current;
+
+    if (
+      restoredFluid &&
+      restoredFluid.fluid === selectedFluid &&
+      restoredFluid.fluidType === fluidType
+    ) {
+      return;
+    }
+
+    restoredFluidRef.current = null;
+
     const selectedDensity = selectedFluid
       ? readNumber(selectedFluid.rho)
       : null;
@@ -252,7 +482,8 @@ function App() {
       processCases: current.processCases.map((processCase) => {
         const updatedCase = {
           ...processCase,
-          vapourPressureUnit: processCase.vapourPressureUnit ?? "bara",
+          vapourPressureUnit:
+            processCase.vapourPressureUnit ?? "bara",
         };
 
         if (selectedDensity !== null) {
@@ -270,9 +501,9 @@ function App() {
     }));
   }, [selectedFluid, fluidType]);
 
-  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  /*
     12. SELECTED VALVE CODE
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+  */
 
   const selectedValveCode = useMemo(() => {
     const stageCode = `${selectedValve.stages}001`;
@@ -287,9 +518,12 @@ function App() {
     ].join("-");
   }, [selectedValve]);
 
-  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  /*
     13. SELECTED TRIM LOOKUP
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+
+    Match the selected valve code against the database code.
+    Both design Cv and Ah come from this same matching row.
+  */
 
   const selectedTrim = useMemo(() => {
     return (
@@ -301,18 +535,31 @@ function App() {
 
   const selectedTrimDesignCv = selectedTrim?.designCvNumeric ?? null;
 
-  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  // Read the Ah column without turning missing or blank values into zero.
+  // Negative and zero Ah values are valid.
+  const rawSelectedTrimAh = selectedTrim?.Ah;
+
+  const selectedTrimAh =
+    rawSelectedTrimAh === null ||
+    rawSelectedTrimAh === undefined ||
+    String(rawSelectedTrimAh).trim() === ""
+      ? null
+      : Number.isFinite(Number(rawSelectedTrimAh))
+        ? Number(rawSelectedTrimAh)
+        : null;
+
+  /*
     13a. PARAMETER LOOKUP CODE
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+  */
 
   const selectedParameterCode = useMemo(
     () => getCvParameterCode(selectedValveCode),
     [selectedValveCode]
   );
 
-  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  /*
     13b. MATCHING FL COEFFICIENT ROW
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+  */
 
   const selectedParameterRow = useMemo(() => {
     if (!selectedParameterCode) {
@@ -334,24 +581,62 @@ function App() {
       ? `No CvBasedParameters row matches "${selectedParameterCode}" for valve "${selectedValveCode}".`
       : null;
 
-  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-    14. CALCULATION RESULT
+  const trimAhLookupError =
+    fluidType === "liquid" &&
+    selectedTrim &&
+    selectedTrimAh === null
+      ? `The loaded trim row for "${selectedValveCode}" does not contain a valid numeric Ah. Check the Ah CSV cell and that loadTrimDatabase preserves the Ah column.`
+      : null;
 
-    Selected fluid is passed through so the
-    sizing result can expose criticalPressure
-    as technicalDetails.pC.
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+  /*
+    14. CALCULATION RESULT
+  */
 
   const result = useMemo(() => {
     if (fluidType === "liquid") {
-      return calculateLiquidSizing(inputs, {
+      const sizingResult = calculateLiquidSizing(inputs, {
         ratedCv: selectedTrimDesignCv,
+        Ah: selectedTrimAh,
         flCoefficients: selectedParameterRow,
         lookupCode: selectedParameterCode || null,
         selectedValve,
         pipework,
         selectedFluid,
+        downstreamDiameterMm: downstreamNominalDiameterMm,
+        downstreamWallThicknessMm: downstreamPipeThickness.tMm,
+        pipeIDCsvText,
       });
+
+      const pipeIDWarnings = pipeIDDatabaseError
+        ? [`Downstream pipe ID unavailable: ${pipeIDDatabaseError}`]
+        : pipeIDCsvText === null
+          ? [
+              "Downstream pipe ID unavailable while the pipe ID database is loading.",
+            ]
+          : [];
+
+      return {
+        ...sizingResult,
+
+        processCaseResults: (
+          sizingResult.processCaseResults ?? []
+        ).map((processCaseResult) => ({
+          ...processCaseResult,
+
+          technicalDetails: {
+            ...processCaseResult.technicalDetails,
+            t: downstreamPipeThickness.tMm,
+          },
+        })),
+
+        warnings: [
+          ...new Set([
+            ...(sizingResult.warnings ?? []),
+            ...downstreamPipeThickness.warnings,
+            ...pipeIDWarnings,
+          ]),
+        ],
+      };
     }
 
     return {
@@ -363,16 +648,21 @@ function App() {
     fluidType,
     inputs,
     selectedTrimDesignCv,
+    selectedTrimAh,
     selectedParameterRow,
     selectedParameterCode,
     selectedValve,
     pipework,
     selectedFluid,
+    downstreamNominalDiameterMm,
+    downstreamPipeThickness,
+    pipeIDCsvText,
+    pipeIDDatabaseError,
   ]);
 
-  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  /*
     15. UPDATE FUNCTIONS
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+  */
 
   function updateInput(field, value) {
     setInputs((current) => ({
@@ -429,15 +719,26 @@ function App() {
     }));
   }
 
-  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  function updateFluidType(nextFluidType) {
+    restoredFluidRef.current = null;
+    setFluidType(nextFluidType);
+    setSelectedFluidName("");
+  }
+
+  function updateSelectedFluidName(nextFluidName) {
+    restoredFluidRef.current = null;
+    setSelectedFluidName(nextFluidName);
+  }
+
+  /*
     16. APP MODE CLASS
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+  */
 
   const appModeClass = fluidType === "liquid" ? "mode-liquid" : "mode-gas";
 
-  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  /*
     17. ADD PROCESS CASE
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+  */
 
   function addProcessCase() {
     setInputs((currentInputs) => {
@@ -447,7 +748,9 @@ function App() {
       const nextId =
         currentInputs.processCases.length > 0
           ? Math.max(
-              ...currentInputs.processCases.map((processCase) => processCase.id)
+              ...currentInputs.processCases.map(
+                (processCase) => processCase.id
+              )
             ) + 1
           : 1;
 
@@ -480,20 +783,294 @@ function App() {
     });
   }
 
-  /*XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+  /*
+    17a. SAVE SCENARIO
+  */
+
+  async function saveScenario() {
+    if (fileOperationRef.current) {
+      return;
+    }
+
+    fileOperationRef.current = true;
+    setFileBusy(true);
+    setFileStatus(null);
+
+    const filenameBase = [
+      inputs.projectNumber,
+      inputs.tagNumber,
+    ]
+      .filter(Boolean)
+      .join("_");
+
+    const safeFilename =
+      (filenameBase || "valve-sizing-scenario")
+        .replace(/[^a-zA-Z0-9_-]/g, "_");
+
+    const suggestedName = `${safeFilename}.json`;
+
+    try {
+      let fileHandle = null;
+
+      if (typeof window.showSaveFilePicker === "function") {
+        fileHandle = await window.showSaveFilePicker({
+          suggestedName,
+          types: [
+            {
+              description: "Valve sizing scenario",
+              accept: {
+                "application/json": [".json"],
+              },
+            },
+          ],
+        });
+      }
+
+      const scenario = {
+        fileType: "iec60534-sizing-scenario",
+        schemaVersion: 1,
+        savedAt: new Date().toISOString(),
+        fluidType,
+        selectedFluidName,
+        inputs,
+        selectedValve,
+        pipework,
+      };
+
+      const json = JSON.stringify(scenario, null, 2);
+
+      if (fileHandle) {
+        const writable = await fileHandle.createWritable();
+
+        await writable.write(json);
+        await writable.close();
+
+        setFileStatus({
+          type: "success",
+          message: `Saved "${fileHandle.name}".`,
+        });
+
+        return;
+      }
+
+      const blob = new Blob([json], {
+        type: "application/json",
+      });
+
+      const url = URL.createObjectURL(blob);
+
+      try {
+        const link = document.createElement("a");
+
+        link.href = url;
+        link.download = suggestedName;
+
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      } finally {
+        setTimeout(() => {
+          URL.revokeObjectURL(url);
+        }, 1000);
+      }
+
+      setFileStatus({
+        type: "success",
+        message: `Download requested for "${suggestedName}".`,
+      });
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        return;
+      }
+
+      console.error("Unable to save scenario:", error);
+
+      setFileStatus({
+        type: "error",
+        message: `Unable to save scenario: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      });
+    } finally {
+      fileOperationRef.current = false;
+      setFileBusy(false);
+    }
+  }
+
+  /*
+    17b. LOAD SCENARIO
+  */
+
+  async function handleLoadScenario() {
+    if (fileOperationRef.current) {
+      return;
+    }
+
+    if (!fluidDatabaseLoaded || fluidDatabaseError) {
+      setFileStatus({
+        type: "error",
+        message:
+          "The fluid database must finish loading successfully before you can load a scenario.",
+      });
+
+      return;
+    }
+
+    fileOperationRef.current = true;
+    setFileBusy(true);
+    setFileStatus(null);
+
+    try {
+      const loadedFile = await loadScenario();
+
+      if (!loadedFile) {
+        return;
+      }
+
+      const { scenario, fileName } = loadedFile;
+
+      const restoredFluid = fluidDatabase.find(
+        (fluid) =>
+          fluid.phase === scenario.fluidType &&
+          fluid.fluidName === scenario.selectedFluidName
+      );
+
+      if (!restoredFluid) {
+        throw new Error(
+          `The saved fluid "${scenario.selectedFluidName}" is not available in the current ${scenario.fluidType} fluid database.`
+        );
+      }
+
+      if (
+        !pipeSizeOptions.includes(scenario.pipework.inletPipeSize) ||
+        !pipeSizeOptions.includes(scenario.pipework.outletPipeSize)
+      ) {
+        throw new Error(
+          "The saved scenario contains an unsupported pipe size."
+        );
+      }
+
+      if (
+        !scheduleOptions.includes(scenario.pipework.inletPipeSchedule) ||
+        !scheduleOptions.includes(scenario.pipework.outletPipeSchedule)
+      ) {
+        throw new Error(
+          "The saved scenario contains an unsupported pipe schedule."
+        );
+      }
+
+      restoredFluidRef.current = {
+        fluid: restoredFluid,
+        fluidType: scenario.fluidType,
+      };
+
+      setFluidType(scenario.fluidType);
+      setSelectedFluidName(scenario.selectedFluidName);
+
+      setInputs({
+        ...scenario.inputs,
+        fluidName: scenario.selectedFluidName,
+        processCases: scenario.inputs.processCases.map(
+          (processCase) => ({
+            ...processCase,
+          })
+        ),
+      });
+
+      setSelectedValve({
+        ...scenario.selectedValve,
+      });
+
+      setPipework({
+        ...scenario.pipework,
+      });
+
+      setFileStatus({
+        type: "success",
+        message: `Loaded "${fileName}".`,
+      });
+    } catch (error) {
+      console.error("Unable to load scenario:", error);
+
+      setFileStatus({
+        type: "error",
+        message: `Unable to load scenario: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      });
+    } finally {
+      fileOperationRef.current = false;
+      setFileBusy(false);
+    }
+  }
+
+  /*
     18. COMPONENT RENDER
-  XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
+  */
 
   return (
     <main className={`app-shell ${appModeClass}`}>
       <section className="hero">
         <div>
           <div className="title-row">
-            <p className="eyebrow">
-              <b>IEC60534 Control Valve Sizing</b>
-            </p>
-            <span className="version-label">Version 0.1.2</span>
+            <div className="title-heading">
+              <p className="eyebrow">
+                <b>IEC60534 Control Valve Sizing</b>
+              </p>
+              <span className="version-label">Version 0.1.2</span>
+            </div>
+
+            <div className="header-actions">
+              <button
+                type="button"
+                className="header-action-button"
+                onClick={saveScenario}
+                disabled={fileBusy}
+              >
+                Save
+              </button>
+
+              <button
+                type="button"
+                className="header-action-button"
+                onClick={handleLoadScenario}
+                disabled={
+                  fileBusy ||
+                  !fluidDatabaseLoaded ||
+                  Boolean(fluidDatabaseError)
+                }
+                title={
+                  !fluidDatabaseLoaded
+                    ? "The fluid database must load before opening a scenario."
+                    : "Open a saved scenario. This replaces the current inputs."
+                }
+              >
+                Load
+              </button>
+            </div>
           </div>
+
+          {fileStatus && (
+            <div
+              role={fileStatus.type === "error" ? "alert" : "status"}
+              className={
+                fileStatus.type === "error"
+                  ? "database-error"
+                  : "scenario-file-status"
+              }
+              style={
+                fileStatus.type === "success"
+                  ? {
+                      margin: "0.75rem 0",
+                      color: "#166534",
+                      overflowWrap: "anywhere",
+                    }
+                  : undefined
+              }
+            >
+              {fileStatus.message}
+            </div>
+          )}
 
           <div className="fluid-controls">
             <div className="project-details-row">
@@ -547,17 +1124,12 @@ function App() {
             </div>
           </div>
 
-          {/* LIQUID / GAS TOGGLE */}
-
           <div className="fluid-toggle-row">
             <div className="fluid-toggle" aria-label="Fluid sizing type">
               <button
                 type="button"
                 className={fluidType === "liquid" ? "active" : ""}
-                onClick={() => {
-                  setFluidType("liquid");
-                  setSelectedFluidName("");
-                }}
+                onClick={() => updateFluidType("liquid")}
               >
                 Liquid
               </button>
@@ -565,22 +1137,20 @@ function App() {
               <button
                 type="button"
                 className={fluidType === "gas" ? "active" : ""}
-                onClick={() => {
-                  setFluidType("gas");
-                  setSelectedFluidName("");
-                }}
+                onClick={() => updateFluidType("gas")}
               >
                 Gas
               </button>
             </div>
           </div>
 
-          {/* PIPEWORK MAIN ROW */}
-
           <div className="pipework-main-row">
             <div className="pipework-column fluid-column">
               <div className="fluid-selector-row">
-                <label className="fluid-select-label" htmlFor="fluid-select">
+                <label
+                  className="fluid-select-label"
+                  htmlFor="fluid-select"
+                >
                   Fluid :
                 </label>
 
@@ -589,7 +1159,7 @@ function App() {
                   className="fluid-select main-fluid-select"
                   value={selectedFluidName}
                   onChange={(event) =>
-                    setSelectedFluidName(event.target.value)
+                    updateSelectedFluidName(event.target.value)
                   }
                 >
                   {filteredFluidDatabase.length === 0 ? (
@@ -643,7 +1213,10 @@ function App() {
                   className="fluid-select pipe-select"
                   value={pipework.inletPipeSchedule}
                   onChange={(event) =>
-                    updatePipework("inletPipeSchedule", event.target.value)
+                    updatePipework(
+                      "inletPipeSchedule",
+                      event.target.value
+                    )
                   }
                 >
                   {scheduleOptions.map((schedule) => (
@@ -693,7 +1266,10 @@ function App() {
                   className="fluid-select pipe-select"
                   value={pipework.outletPipeSchedule}
                   onChange={(event) =>
-                    updatePipework("outletPipeSchedule", event.target.value)
+                    updatePipework(
+                      "outletPipeSchedule",
+                      event.target.value
+                    )
                   }
                 >
                   {scheduleOptions.map((schedule) => (
@@ -705,8 +1281,6 @@ function App() {
               </div>
             </div>
           </div>
-
-          {/* DATABASE ERROR MESSAGES */}
 
           {trimDatabaseError && (
             <div className="database-error">
@@ -726,9 +1300,27 @@ function App() {
             </div>
           )}
 
+          {pipeThicknessDatabaseError && (
+            <div className="database-error">
+              Pipe thickness database error: {pipeThicknessDatabaseError}
+            </div>
+          )}
+
+          {pipeIDDatabaseError && (
+            <div className="database-error">
+              Pipe ID database error: {pipeIDDatabaseError}
+            </div>
+          )}
+
           {parameterLookupError && (
             <div className="database-error">
               {parameterLookupError}
+            </div>
+          )}
+
+          {trimAhLookupError && (
+            <div className="database-error">
+              {trimAhLookupError}
             </div>
           )}
         </div>
