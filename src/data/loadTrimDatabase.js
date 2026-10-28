@@ -20,7 +20,9 @@ function parseCsv(csvText) {
     return [];
   }
 
-  const headers = splitCsvLine(lines[0]).map((header) => normalizeHeader(header));
+  const headers = splitCsvLine(lines[0]).map((header) =>
+    normalizeHeader(header)
+  );
 
   return lines.slice(1).map((line, rowIndex) => {
     const values = splitCsvLine(line);
@@ -77,8 +79,16 @@ function normalizeHeader(header) {
 }
 
 function normalizeTrimRow(row) {
+  // CSV headers are normalized to lowercase.
+  // Expose the acoustic coefficient under the exact key App.jsx reads.
+  // Negative and zero values are valid; missing/invalid values remain null.
+  const Ah = parseNumber(row.ah);
+
   return {
     ...row,
+
+    // Acoustic coefficient consumed by App.jsx
+    Ah,
 
     // Core trim identification fields
     valveSizeNumeric: parseNumber(row.size),
@@ -99,7 +109,7 @@ function normalizeTrimRow(row) {
     lPerWNumeric: parseNumber(row.l_per_w),
     rowGapNumeric: parseNumber(row.rowgap),
     alphaNumeric: parseNumber(row.alpha),
-    ahNumeric: parseNumber(row.ah),
+    ahNumeric: Ah,
     stNumeric: parseNumber(row.st),
     n0Numeric: parseNumber(row.n0),
 
@@ -120,11 +130,16 @@ function normalizeTrimRow(row) {
 }
 
 function parseNumber(value) {
-  if (value === null || value === undefined || value === "") {
+  if (value === null || value === undefined) {
     return null;
   }
 
   const cleaned = String(value).replace(/,/g, "").trim();
+
+  if (cleaned === "") {
+    return null;
+  }
+
   const number = Number(cleaned);
 
   return Number.isFinite(number) ? number : null;

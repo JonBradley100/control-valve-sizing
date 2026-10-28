@@ -18,6 +18,12 @@ function formatValue(value, decimalPlaces = 3) {
     : "—";
 }
 
+function formatNoise(value) {
+  return Number.isFinite(value)
+    ? value.toFixed(1)
+    : "Unavailable";
+}
+
 function ResultPanel({ result = null, ratedCv = null }) {
   const processCaseResults = result?.processCaseResults || [];
 
@@ -49,7 +55,7 @@ function ResultPanel({ result = null, ratedCv = null }) {
               C<sub>v</sub>
             </div>
 
-            <div>Noise, dBA</div>
+            <div>Noise, dB(A)</div>
             <div>Stroke%</div>
           </div>
 
@@ -84,7 +90,11 @@ function ResultPanel({ result = null, ratedCv = null }) {
                   </div>
 
                   <div className="result-cell">
-                    <span>—</span>
+                    <span>
+                      {formatNoise(
+                        caseResult?.acoustics?.results?.noiseDBA
+                      )}
+                    </span>
                   </div>
 
                   <div className="result-cell">
