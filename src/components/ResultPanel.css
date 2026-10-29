@@ -47,6 +47,13 @@ XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX*/
   align-items: center;
 }
 
+/* Match Process Cases data-row height without changing the header. */
+
+.results-panel .results-row:not(.results-header) {
+  min-height: 44px;
+  box-sizing: border-box;
+}
+
 /* Add the information-button column */
 
 .results-panel .results-row.results-info-grid {

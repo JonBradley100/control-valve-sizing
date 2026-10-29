@@ -66,3 +66,7 @@
     padding-right: 0;
   }
 }
+
+.fluid-toggle button.active {
+  color: #0066ff;
+}

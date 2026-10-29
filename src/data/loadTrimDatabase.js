@@ -26,7 +26,6 @@ function parseCsv(csvText) {
 
   return lines.slice(1).map((line, rowIndex) => {
     const values = splitCsvLine(line);
-
     const row = {};
 
     headers.forEach((header, index) => {
@@ -79,16 +78,26 @@ function normalizeHeader(header) {
 }
 
 function normalizeTrimRow(row) {
-  // CSV headers are normalized to lowercase.
-  // Expose the acoustic coefficient under the exact key App.jsx reads.
-  // Negative and zero values are valid; missing/invalid values remain null.
   const Ah = parseNumber(row.ah);
+  const stages = parseNumber(row.stages);
+
+  const s1Dp = parseNumber(row.s1_dp);
+  const s2Dp = parseNumber(row.s2_dp);
+  const s3Dp = parseNumber(row.s3_dp);
+  const s4Dp = parseNumber(row.s4_dp);
 
   return {
+    // Preserve the original normalized CSV fields.
     ...row,
 
-    // Acoustic coefficient consumed by App.jsx
+    // Exact keys consumed by the acoustic calculation.
+    // Missing or invalid values remain null.
     Ah,
+    Stages: stages,
+    s1_dP: s1Dp,
+    s2_dP: s2Dp,
+    s3_dP: s3Dp,
+    s4_dP: s4Dp,
 
     // Core trim identification fields
     valveSizeNumeric: parseNumber(row.size),
@@ -96,7 +105,7 @@ function normalizeTrimRow(row) {
     designCvNumeric: parseNumber(row.cv_design),
     ratedCvNumeric: parseNumber(row.cv_design),
 
-    stagesNumeric: parseNumber(row.stages),
+    stagesNumeric: stages,
     strokeNumeric: parseNumber(row.stroke),
     deadliftNumeric: parseNumber(row.deadlift),
 
@@ -113,11 +122,11 @@ function normalizeTrimRow(row) {
     stNumeric: parseNumber(row.st),
     n0Numeric: parseNumber(row.n0),
 
-    // Stage pressure-drop fractions / indicators
-    s1DpNumeric: parseNumber(row.s1_dp),
-    s2DpNumeric: parseNumber(row.s2_dp),
-    s3DpNumeric: parseNumber(row.s3_dp),
-    s4DpNumeric: parseNumber(row.s4_dp),
+    // Preserve existing numeric stage-pressure fields.
+    s1DpNumeric: s1Dp,
+    s2DpNumeric: s2Dp,
+    s3DpNumeric: s3Dp,
+    s4DpNumeric: s4Dp,
 
     // Stage diameters or identifiers if present
     s1DNumeric: parseNumber(row.s1_d),

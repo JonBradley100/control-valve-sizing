@@ -56,20 +56,42 @@
 .process-case-cell {
   display: flex;
   align-items: center;
-  padding-top: 4px;
-  padding-bottom: 4px;
+  padding-top: 6px;
+  padding-bottom: 6px;
 }
 
 .process-case-cell input,
 .process-case-cell select {
-  display: flex;
+  display: block;
   width: 100%;
-  justify-content: center;
+  height: 32px;
+  min-height: 32px;
+  box-sizing: border-box;
   text-align: center;
   font-size: 10px;
-  align-items: center;
-  padding-top: 2px;
-  padding-bottom: 2px;
+  line-height: normal;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.process-case-cell input[type="number"] {
+  appearance: auto;
+  -webkit-appearance: auto;
+  -moz-appearance: auto;
+  line-height: 28px;
+}
+
+/* Give Chrome's two-arrow control a defined vertical space. */
+.process-case-cell input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: auto;
+  height: 28px;
+  margin: 0;
+  padding: 0;
+}
+
+.process-case-cell input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: auto;
+  margin: 0;
 }
 
 .density-toggle-cell {

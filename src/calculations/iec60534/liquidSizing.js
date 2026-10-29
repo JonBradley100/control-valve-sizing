@@ -5,6 +5,7 @@ import {
 
 import calculateRefinedCv from "./calculateRefinedCv";
 import { calculateLiquidAcoustics } from "./liquidAcoustics";
+import { calculateTrimStroke } from "./trimStroke";
 
 export {
   calculateLiquidTrimParameters,
@@ -430,7 +431,7 @@ export function calculateLiquidSizing(
     trimAreaM2 = null,
     numberOfHoles = null,
 
-    // Entire selected trim row, including stage CSV columns.
+    // Entire selected trim row, including stage and geometry columns.
     trimStageData = null,
 
     flCoefficients = null,
@@ -688,6 +689,24 @@ export function calculateLiquidSizing(
         : null;
 
     /*
+      STROKE ESTIMATE
+
+      Uses refined process Cv and geometry from the SAME selected
+      trim row already provided by App.jsx.
+
+      No provisional-Cv fallback is used for stroke.
+
+      Stroke percentage is NOT Cv capacity percentage.
+      Acoustic cvPercent continues to use refinedCvPercent below.
+    */
+
+    const strokeResult = calculateTrimStroke({
+      trim: trimStageData,
+      requiredCv: refinedCv,
+      ratedCv,
+    });
+
+    /*
       ACOUSTIC PRESSURE BASIS
 
       For multi-stage trims:
@@ -760,6 +779,8 @@ export function calculateLiquidSizing(
       downstreamPipeSchedule,
       trimAreaM2: acousticTrimAreaM2,
       numberOfHoles: acousticNumberOfHoles,
+
+      // Preserve Cv capacity percentage, NOT stroke percentage.
       cvPercent: refinedCvPercent,
     });
 
@@ -817,6 +838,22 @@ export function calculateLiquidSizing(
         ratedCv: trimResult.ratedCv,
         cvRatio: refinedCvRatio,
         cvRatioPercent: refinedCvPercent,
+
+        // Existing ResultPanel reads this exact field.
+        strokePercent: strokeResult.strokePercent,
+
+        // Additional stroke data for technical inspection.
+        strokeTravelMm: strokeResult.travelMm,
+        strokeTravelAfterDeadliftMm:
+          strokeResult.travelAfterDeadliftMm,
+        strokeActiveTravelPercent:
+          strokeResult.activeTravelPercent,
+        strokeFullStrokeAreaPercent:
+          strokeResult.fullStrokeAreaPercent,
+        strokeStatus: strokeResult.status,
+        strokeModel: strokeResult.model,
+        strokeDetails: strokeResult,
+
         FL: trimResult.FL,
         FLP: flpResult.FLP,
         FP: flpResult.FP,
@@ -846,6 +883,7 @@ export function calculateLiquidSizing(
         ...(liquidCvResult?.warnings ?? []),
         ...(liquidCvResult ? trimResult.warnings : []),
         ...(liquidCvResult ? flpResult.warnings : []),
+        ...strokeResult.warnings,
       ],
 
       canCalculate: Boolean(liquidCvResult),
