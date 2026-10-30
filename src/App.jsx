@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { loadTrimDatabase } from "./data/loadTrimDatabase";
 import { loadFluidDatabase } from "./data/loadFluidDatabase";
@@ -7,6 +7,7 @@ import { loadCvParameterDatabase } from "./data/loadCvParameterDatabase";
 import ResultPanel from "./components/ResultPanel";
 import TrimSelectionPanel from "./components/TrimSelectionPanel";
 import ProcessCasesPanel from "./components/ProcessCasesPanel";
+import LiquidPlot from "./components/LiquidPlot";
 
 import { calculateLiquidSizing } from "./calculations/iec60534/liquidSizing";
 import { calculateCaseVapourPressure } from "./calculations/fluidProperties";
@@ -23,25 +24,25 @@ import { loadScenario } from "./utils/loadScenario";
 
 import "./App.css";
 
-function createDefaultProcessCase(id = 1) {
-  return {
-    id,
-    caseName: `Case ${id}`,
-    flowRate: 100,
-    flowUnit: "m3/h",
-    specificGravity: 1,
-    density: 1000,
-    temperature: 60,
-    temperatureUnit: "oC",
-    pressureIn: 100,
-    pressureOut: 90,
-    pressureUnit: "barg",
-    vapourPressure: "",
-    vapourPressureUnit: "bara",
-  };
-}
+export default function App() {
+  function createDefaultProcessCase(id = 1) {
+    return {
+      id,
+      caseName: `Case ${id}`,
+      flowRate: 100,
+      flowUnit: "m3/h",
+      specificGravity: 1,
+      density: 1000,
+      temperature: 60,
+      temperatureUnit: "oC",
+      pressureIn: 100,
+      pressureOut: 90,
+      pressureUnit: "barg",
+      vapourPressure: "",
+      vapourPressureUnit: "bara",
+    };
+  }
 
-function App() {
   const restoredFluidRef = useRef(null);
   const fileOperationRef = useRef(false);
 
@@ -60,14 +61,16 @@ function App() {
     processCases: [createDefaultProcessCase(1)],
   });
 
-  const deleteProcessCase = (caseId) => {
-    setInputs((previousInputs) => ({
-      ...previousInputs,
-      processCases: previousInputs.processCases.filter(
-        (processCase) => processCase.id !== caseId
-      ),
-    }));
-  };
+  /*
+    Label positions use chart coordinates:
+      x: total stroke percentage
+      y: Cv
+
+    Keys are process case IDs converted to strings.
+    Only manually positioned labels need stored coordinates.
+  */
+  const [liquidPlotLabelPositions, setLiquidPlotLabelPositions] =
+    useState({});
 
   const [selectedValve, setSelectedValve] = useState({
     directionality: "",
@@ -206,6 +209,7 @@ function App() {
     }
 
     loadParameters();
+
     return () => controller.abort();
   }, []);
 
@@ -310,6 +314,7 @@ function App() {
     }
 
     loadPipeIDDatabase();
+
     return () => controller.abort();
   }, []);
 
@@ -406,7 +411,6 @@ function App() {
     All trim data comes from the same code-matched row.
     The loader must preserve the stage-count and dP columns.
   */
-
   const selectedTrim = useMemo(
     () =>
       trimDatabase.find(
@@ -484,6 +488,7 @@ function App() {
     if (fluidType !== "liquid" || !selectedTrim) return null;
 
     const rawStages = selectedTrim.Stages ?? selectedTrim.stages;
+
     const stages =
       rawStages === null ||
       rawStages === undefined ||
@@ -529,10 +534,7 @@ function App() {
         Ah: selectedTrimAh,
         trimAreaM2: selectedTrimAreaM2,
         numberOfHoles: selectedTrimNumberOfHoles,
-
-        // NEW: stage data from the same matching database row.
         trimStageData: selectedTrim,
-
         flCoefficients: selectedParameterRow,
         lookupCode: selectedParameterCode || null,
         selectedValve,
@@ -632,6 +634,49 @@ function App() {
         return updatedCase;
       }),
     }));
+  }
+
+  function deleteProcessCase(caseId) {
+    setInputs((previousInputs) => ({
+      ...previousInputs,
+      processCases: previousInputs.processCases.filter(
+        (processCase) => processCase.id !== caseId
+      ),
+    }));
+
+    setLiquidPlotLabelPositions((previousPositions) => {
+      const nextPositions = { ...previousPositions };
+      delete nextPositions[String(caseId)];
+      return nextPositions;
+    });
+  }
+
+  function updateLiquidPlotLabelPositions(nextPositions) {
+    const validCaseIds = new Set(
+      inputs.processCases.map((processCase) => String(processCase.id))
+    );
+
+    const validatedPositions = {};
+
+    for (const [caseId, position] of Object.entries(nextPositions ?? {})) {
+      if (
+        validCaseIds.has(caseId) &&
+        position !== null &&
+        typeof position === "object" &&
+        Number.isFinite(position.x) &&
+        position.x >= 0 &&
+        position.x <= 100 &&
+        Number.isFinite(position.y) &&
+        position.y >= 0
+      ) {
+        validatedPositions[caseId] = {
+          x: position.x,
+          y: position.y,
+        };
+      }
+    }
+
+    setLiquidPlotLabelPositions(validatedPositions);
   }
 
   function updateSelectedValve(field, value) {
@@ -738,6 +783,31 @@ function App() {
         });
       }
 
+      /*
+        Only save positions belonging to current cases.
+        Automatically placed labels do not require saved entries.
+      */
+      const positionsToSave = {};
+
+      for (const processCase of inputs.processCases) {
+        const caseId = String(processCase.id);
+        const position = liquidPlotLabelPositions[caseId];
+
+        if (
+          position &&
+          Number.isFinite(position.x) &&
+          position.x >= 0 &&
+          position.x <= 100 &&
+          Number.isFinite(position.y) &&
+          position.y >= 0
+        ) {
+          positionsToSave[caseId] = {
+            x: position.x,
+            y: position.y,
+          };
+        }
+      }
+
       const scenario = {
         fileType: "iec60534-sizing-scenario",
         schemaVersion: 1,
@@ -747,6 +817,7 @@ function App() {
         inputs,
         selectedValve,
         pipework,
+        liquidPlotLabelPositions: positionsToSave,
       };
 
       const json = JSON.stringify(scenario, null, 2);
@@ -760,6 +831,7 @@ function App() {
           type: "success",
           message: `Saved "${fileHandle.name}".`,
         });
+
         return;
       }
 
@@ -788,6 +860,7 @@ function App() {
       if (error?.name === "AbortError") return;
 
       console.error("Unable to save scenario:", error);
+
       setFileStatus({
         type: "error",
         message: `Unable to save scenario: ${
@@ -809,6 +882,7 @@ function App() {
         message:
           "The fluid database must finish loading successfully before you can load a scenario.",
       });
+
       return;
     }
 
@@ -852,6 +926,21 @@ function App() {
         );
       }
 
+      /*
+        The loader has validated these coordinates.
+        Older files omit this field and receive automatic placement.
+      */
+      const restoredLabelPositions = {};
+
+      for (const [caseId, position] of Object.entries(
+        scenario.liquidPlotLabelPositions ?? {}
+      )) {
+        restoredLabelPositions[caseId] = {
+          x: position.x,
+          y: position.y,
+        };
+      }
+
       restoredFluidRef.current = {
         fluid: restoredFluid,
         fluidType: scenario.fluidType,
@@ -870,6 +959,7 @@ function App() {
 
       setSelectedValve({ ...scenario.selectedValve });
       setPipework({ ...scenario.pipework });
+      setLiquidPlotLabelPositions(restoredLabelPositions);
 
       setFileStatus({
         type: "success",
@@ -877,6 +967,7 @@ function App() {
       });
     } catch (error) {
       console.error("Unable to load scenario:", error);
+
       setFileStatus({
         type: "error",
         message: `Unable to load scenario: ${
@@ -910,6 +1001,7 @@ function App() {
               >
                 Save
               </button>
+
               <button
                 type="button"
                 className="header-action-button"
@@ -965,6 +1057,7 @@ function App() {
                   }
                 />
               </div>
+
               <div className="project-detail-field project-number-field">
                 <label htmlFor="project-number">Project No.:</label>
                 <input
@@ -976,6 +1069,7 @@ function App() {
                   }
                 />
               </div>
+
               <div className="project-detail-field item-number-field">
                 <label htmlFor="item-number">Item No.:</label>
                 <input
@@ -987,6 +1081,7 @@ function App() {
                   }
                 />
               </div>
+
               <div className="project-detail-field tag-number-field">
                 <label htmlFor="tag-number">Tag No.:</label>
                 <input
@@ -1010,6 +1105,7 @@ function App() {
               >
                 Liquid
               </button>
+
               <button
                 type="button"
                 className={fluidType === "gas" ? "active" : ""}
@@ -1029,6 +1125,7 @@ function App() {
                 >
                   Fluid :
                 </label>
+
                 <select
                   id="fluid-select"
                   className="fluid-select main-fluid-select"
@@ -1058,6 +1155,7 @@ function App() {
                 >
                   Inlet Pipe :
                 </label>
+
                 <select
                   id="inlet-pipe-select"
                   className="fluid-select pipe-select"
@@ -1073,6 +1171,7 @@ function App() {
                   ))}
                 </select>
               </div>
+
               <div className="fluid-selector-row">
                 <label
                   className="fluid-select-label"
@@ -1080,6 +1179,7 @@ function App() {
                 >
                   Inlet Schedule :
                 </label>
+
                 <select
                   id="inlet-schedule-select"
                   className="fluid-select pipe-select"
@@ -1105,6 +1205,7 @@ function App() {
                 >
                   Outlet Pipe :
                 </label>
+
                 <select
                   id="outlet-pipe-select"
                   className="fluid-select pipe-select"
@@ -1120,6 +1221,7 @@ function App() {
                   ))}
                 </select>
               </div>
+
               <div className="fluid-selector-row">
                 <label
                   className="fluid-select-label"
@@ -1127,6 +1229,7 @@ function App() {
                 >
                   Outlet Schedule :
                 </label>
+
                 <select
                   id="outlet-schedule-select"
                   className="fluid-select pipe-select"
@@ -1150,38 +1253,47 @@ function App() {
               Trim database error: {trimDatabaseError}
             </div>
           )}
+
           {fluidDatabaseError && (
             <div className="database-error">
               Fluid database error: {fluidDatabaseError}
             </div>
           )}
+
           {cvParameterDatabaseError && (
             <div className="database-error">
               Cv parameter database error: {cvParameterDatabaseError}
             </div>
           )}
+
           {pipeThicknessDatabaseError && (
             <div className="database-error">
               Pipe thickness database error: {pipeThicknessDatabaseError}
             </div>
           )}
+
           {pipeIDDatabaseError && (
             <div className="database-error">
               Pipe ID database error: {pipeIDDatabaseError}
             </div>
           )}
+
           {parameterLookupError && (
             <div className="database-error">{parameterLookupError}</div>
           )}
+
           {trimAhLookupError && (
             <div className="database-error">{trimAhLookupError}</div>
           )}
+
           {trimAreaLookupError && (
             <div className="database-error">{trimAreaLookupError}</div>
           )}
+
           {trimHoleCountLookupError && (
             <div className="database-error">{trimHoleCountLookupError}</div>
           )}
+
           {trimStageLookupError && (
             <div className="database-error">{trimStageLookupError}</div>
           )}
@@ -1215,10 +1327,18 @@ function App() {
               ratedCv={selectedTrimDesignCv}
             />
           </div>
+
+          {fluidType === "liquid" && (
+            <LiquidPlot
+              trim={selectedTrim}
+              ratedCv={selectedTrimDesignCv}
+              processCaseResults={result.processCaseResults ?? []}
+              labelPositions={liquidPlotLabelPositions}
+              onLabelPositionsChange={updateLiquidPlotLabelPositions}
+            />
+          )}
         </div>
       </section>
     </main>
   );
 }
-
-export default App;

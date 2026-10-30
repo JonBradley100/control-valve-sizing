@@ -33,7 +33,7 @@
 
 .trim-selection-panel .trim-selection-grid {
   display: grid;
-  grid-template-columns: repeat(5, 110px) 170px;
+  grid-template-columns: 125px repeat(4, 110px) 170px;
   justify-content: center;
   align-items: end;
   gap: 8px;
